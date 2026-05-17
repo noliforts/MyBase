@@ -1,0 +1,25 @@
+#include "db_client_lib/db_connection.h"
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <cstring>
+
+DbResult TcpDbConnection::execute(const std::string& query) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    sockaddr_in serv_addr{};
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port_);
+    inet_pton(AF_INET, host_.c_str(), &serv_addr.sin_addr);
+
+    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+        return {false, "Connection failed"};
+    }
+
+    send(sock, query.c_str(), query.length(), 0);
+
+    char buffer[4096] = {0};
+    read(sock, buffer, 4096);
+    ::close(sock);
+
+    return {true, std::string(buffer)};
+}

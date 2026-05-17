@@ -1,35 +1,53 @@
-cmake_minimum_required(VERSION 3.16)
-project(MyBase VERSION 1.0.0 LANGUAGES CXX)
+
+
+cmake_minimum_required(VERSION 3.14)
+project(MyBase CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(include)   # добавляем
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
-# 1. Модуль ядра СУБД
-file(GLOB_RECURSE CORE_SRC "src/db_core/*.cpp")
-add_library(db_core STATIC ${CORE_SRC})
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/heads/main.zip
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
-# 2. Модуль клиентской библиотеки
-file(GLOB_RECURSE CLIENT_LIB_SRC "src/db_client_lib/*.cpp")
-add_library(db_client_lib STATIC ${CLIENT_LIB_SRC})
+include_directories(include)
 
-# 3. Модуль сервера СУБД
-file(GLOB_RECURSE SERVER_SRC "src/db_server/*.cpp")
-add_executable(db_server ${SERVER_SRC})
-target_link_libraries(db_server db_core)
+file(GLOB_RECURSE CORE_SOURCES src/db_core/*.cpp)
+add_library(db_core STATIC ${CORE_SOURCES})
 
-# 4. Модуль консольного клиента
-file(GLOB_RECURSE CLIENT_SRC "src/db_client/*.cpp")
-add_executable(db_client ${CLIENT_SRC})
-target_link_libraries(db_client db_client_lib)
+file(GLOB_RECURSE SERVER_SOURCES src/db_server/*.cpp)
+add_executable(db_server ${SERVER_SOURCES})
+target_link_libraries(db_server PRIVATE db_core)
 
-# Тесты (включаются при сборке)
-#enable_testing()
-#file(GLOB TEST_FILES "tests/*.cpp")
-#foreach(TEST_FILE ${TEST_FILES})
-#get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
-#add_executable(${TEST_NAME} ${TEST_FILE})
-#target_link_libraries(${TEST_NAME} db_core db_client_lib)
-#add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-endforeach()
+
+
+file(GLOB_RECURSE CLIENT_LIB_SOURCES src/db_client_lib/*.cpp)
+add_library(db_client_lib STATIC ${CLIENT_LIB_SOURCES})
+# Связываем её с db_core, чтобы клиент видел структуры ответов (QueryResult)
+target_link_libraries(db_client_lib PRIVATE db_core)
+
+# Б) Собираем сам консольный клиент (db_client)
+file(GLOB_RECURSE CLIENT_CLI_SOURCES src/db_client/*.cpp)
+add_executable(db_client ${CLIENT_CLI_SOURCES})
+# Линкуем клиент исключительно с его библиотекой по ТЗ!
+target_link_libraries(db_client PRIVATE db_client_lib)
+
+
+
+enable_testing()
+
+file(GLOB TEST_SOURCES tests/*.cpp)
+
+add_executable(db_tests ${TEST_SOURCES})
+target_include_directories(db_tests PRIVATE ${googletest_SOURCE_DIR}/googletest/include)
+target_link_libraries(db_tests PRIVATE db_core gtest gtest_main)
+add_test(NAME AllTests COMMAND db_tests)

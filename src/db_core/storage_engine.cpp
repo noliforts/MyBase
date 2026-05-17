@@ -50,8 +50,8 @@ static Value jsonToValue(const json& j, DataType type) {
 }
 
 void JsonFileStorageEngine::saveDatabase(const Database& db, const std::string& path) {
-    for (const auto& [tableName, table] : db.getTables()) {
-        std::string filePath = path + "/" + db.getName() + "_" + tableName + ".jsonl";
+    for (const auto& [tableName, table] : db.tables) {
+        std::string filePath = path + "/" + db.name + "_" + tableName + ".jsonl";
         std::ofstream file(filePath);
         if (!file.is_open()) throw std::runtime_error("Failed to open file: " + filePath);
 
@@ -61,7 +61,8 @@ void JsonFileStorageEngine::saveDatabase(const Database& db, const std::string& 
         }
         file << schemaJson.dump() << "\n";
 
-        for (const auto& row : table.getRows()) {
+        // Обращаемся напрямую к вектору строк таблицы
+        for (const auto& row : table.rows) {
             json rowJson = json::array();
             for (const auto& cell : row) {
                 rowJson.push_back(valueToJson(cell));
@@ -76,21 +77,36 @@ Database JsonFileStorageEngine::loadDatabase(const std::string& path) {
 }
 
 void JsonFileStorageEngine::saveAll(const DatabaseManager& mgr) {
-    std::string basePath = "./data"; 
-    for (const auto& [dbName, db] : mgr.getDatabases()) {
+    std::string basePath = "./data";
+    for (const auto& [dbName, db] : mgr.getDatabases()){
         saveDatabase(db, basePath);
     }
 }
 
+#include <filesystem>
+#include <regex>
+
 void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
     std::string basePath = "./data";
-    
-    for (const auto& dbName : mgr.getDatabaseNames()) {
-        Database db(dbName);
-        
-        for (const auto& tableName : mgr.getTableNamesForDb(dbName)) {
-            std::string filePath = basePath + "/" + dbName + "_" + tableName + ".jsonl";
-            std::ifstream file(filePath);
+
+    if (!std::filesystem::exists(basePath)) {
+        std::filesystem::create_directories(basePath);
+        return;
+    }
+
+    std::regex fileRegex("([a-zA-Z0-9_]+)_([a-zA-Z0-9_]+)\\.jsonl");
+
+    for (const auto& entry : std::filesystem::directory_iterator(basePath)) {
+        if (!entry.is_regular_file()) continue;
+
+        std::string fileName = entry.path().filename().string();
+        std::smatch matches;
+
+        if (std::regex_match(fileName, matches, fileRegex)) {
+            std::string dbName = matches[1].str();
+            std::string tableName = matches[2].str();
+
+            std::ifstream file(entry.path());
             if (!file.is_open()) continue;
 
             std::string line;
@@ -116,9 +132,14 @@ void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
                 }
                 rows.push_back(row);
             }
-            
-            db.addTable(tableName, schema, rows);
+
+            auto& db = mgr.getDatabases()[dbName];
+
+            Table restoredTable;
+            restoredTable.schema = schema;
+            restoredTable.rows = rows;
+
+            db.tables[tableName] = restoredTable;
         }
-        mgr.addDatabase(std::move(db));
     }
 }
