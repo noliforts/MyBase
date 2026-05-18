@@ -12,6 +12,7 @@ public:
 
     void insert(const Row& values);
     std::vector<Row> select(const std::vector<std::string>& projection, const ConditionNode* cond) const;
+    std::vector<Row> selectFiltered(const ConditionNode* cond) const;
     int update(const std::vector<std::pair<std::string, Value>>& assignments, const ConditionNode* cond);
     int remove(const ConditionNode* cond);
 };
