@@ -5,16 +5,20 @@
 #include <memory>
 
 int main(int argc, char** argv) {
-    // 1. Инициализируем хранилище СУБД
+    std::string host = "127.0.0.1";
+    int port = 9000;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--host" && i + 1 < argc) host = argv[++i];
+        else if (arg == "--port" && i + 1 < argc) port = std::stoi(argv[++i]);
+    }
+
     auto& db_mgr = DatabaseManager::instance();
     db_mgr.setStorageEngine(std::make_unique<JsonFileStorageEngine>());
     db_mgr.loadAll();
 
-    // 2. Собираем сервер из слоев и запускаем его
-    int port = 9000;
-    auto binary_protocol = std::make_unique<BinaryProtocol>();
-
-    TcpServer server(port, std::move(binary_protocol));
+    TcpServer server(host, port, std::make_unique<BinaryProtocol>());
     server.start();
 
     return 0;

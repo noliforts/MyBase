@@ -54,7 +54,9 @@ Token Lexer::nextToken() {
         advance();
         std::string str;
         while (peek() != '\'' && peek() != '\0') str += advance();
-        if (peek() == '\'') advance();
+        if (peek() == '\0')
+            throw std::runtime_error("Unterminated string literal at line " + std::to_string(line_));
+        advance();
         return {TokenType::STRING_LIT, str, line_, startCol};
     }
 
@@ -73,6 +75,7 @@ Token Lexer::nextToken() {
     else if (op == "(") type = TokenType::LPAREN;
     else if (op == ")") type = TokenType::RPAREN;
     else if (op == "*") type = TokenType::STAR;
+    else throw std::runtime_error("Unexpected character '" + op + "' at line " + std::to_string(line_));
 
     return {type, op, line_, startCol};
 }

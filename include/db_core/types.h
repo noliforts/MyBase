@@ -37,6 +37,7 @@ using Row = std::vector<Value>;
 // Результат выполнения любого SQL запроса для передачи по сети
 struct QueryResult {
     bool isSelect = false;
+    bool isDDL = false;
     std::vector<std::string> columns;
     std::vector<DataType> columnTypes;
     std::vector<Row> rows;
