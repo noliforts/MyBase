@@ -65,10 +65,11 @@ QueryResult InsertCommand::execute(DatabaseManager& mgr, Session& session) {
     return {false, false, {}, {}, {}, insertedCount, "", false};
 }
 
-SelectCommand::SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c,
+SelectCommand::SelectCommand(std::string t, std::vector<SelectExpr> exprs, std::shared_ptr<ConditionNode> c,
+                             std::optional<std::string> groupBy,
                              std::optional<OrderBy> orderBy, std::optional<size_t> limit, std::optional<size_t> offset)
-    : table_(std::move(t)), projection_(std::move(p)), condition_(std::move(c))
-    , orderBy_(std::move(orderBy)), limit_(limit), offset_(offset) {}
+    : table_(std::move(t)), exprs_(std::move(exprs)), condition_(std::move(c))
+    , groupBy_(std::move(groupBy)), orderBy_(std::move(orderBy)), limit_(limit), offset_(offset) {}
 
 static int valueCompare(const Value& a, const Value& b) {
     return std::visit([](auto&& lhs, auto&& rhs) -> int {
@@ -83,45 +84,134 @@ static int valueCompare(const Value& a, const Value& b) {
     }, a, b);
 }
 
-QueryResult SelectCommand::execute(DatabaseManager& mgr, Session& session) {
-    auto& t = mgr.getCurrentDatabase(session).getTable(table_);
+static Value computeAggregate(AggFunc func, const std::string& col,
+                               const std::vector<Row>& rows, const TableSchema& schema) {
+    if (func == AggFunc::COUNT) return static_cast<int>(rows.size());
+    if (rows.empty()) return nullptr;
 
-    auto rows = t.selectFiltered(condition_.get());
+    size_t idx = schema.getColumnIndex(col);
 
-    if (orderBy_) {
-        size_t colIdx = t.schema.getColumnIndex(orderBy_->column);
-        bool asc = orderBy_->ascending;
-        std::stable_sort(rows.begin(), rows.end(), [colIdx, asc](const Row& a, const Row& b) {
-            int cmp = valueCompare(a[colIdx], b[colIdx]);
+    if (func == AggFunc::MIN) {
+        Value best = rows[0][idx];
+        for (size_t i = 1; i < rows.size(); ++i)
+            if (valueCompare(rows[i][idx], best) < 0) best = rows[i][idx];
+        return best;
+    }
+    if (func == AggFunc::MAX) {
+        Value best = rows[0][idx];
+        for (size_t i = 1; i < rows.size(); ++i)
+            if (valueCompare(rows[i][idx], best) > 0) best = rows[i][idx];
+        return best;
+    }
+
+    bool hasFloat = false;
+    double total = 0;
+    for (const auto& row : rows) {
+        std::visit([&](auto&& v) {
+            using T = std::decay_t<decltype(v)>;
+            if constexpr (std::is_same_v<T, int>)        total += v;
+            else if constexpr (std::is_same_v<T, float>) { total += v; hasFloat = true; }
+        }, row[idx]);
+    }
+    if (func == AggFunc::AVG) return static_cast<float>(total / static_cast<double>(rows.size()));
+    return hasFloat ? Value(static_cast<float>(total)) : Value(static_cast<int>(total));
+}
+
+static Row buildResultRow(const std::vector<SelectExpr>& exprs,
+                           const std::vector<Row>& groupRows, const TableSchema& schema) {
+    Row result;
+    for (const auto& expr : exprs) {
+        if (expr.isAggregate)
+            result.push_back(computeAggregate(expr.func, expr.column, groupRows, schema));
+        else {
+            size_t idx = schema.getColumnIndex(expr.column);
+            result.push_back(groupRows.empty() ? Value(nullptr) : groupRows[0][idx]);
+        }
+    }
+    return result;
+}
+
+static void applyOrderOffsetLimit(std::vector<Row>& rows,
+                                   const std::optional<OrderBy>& orderBy,
+                                   const std::vector<std::string>& cols,
+                                   std::optional<size_t> offset, std::optional<size_t> limit) {
+    if (orderBy) {
+        size_t sortIdx = 0;
+        for (size_t i = 0; i < cols.size(); ++i)
+            if (cols[i] == orderBy->column) { sortIdx = i; break; }
+        bool asc = orderBy->ascending;
+        std::stable_sort(rows.begin(), rows.end(), [sortIdx, asc](const Row& a, const Row& b) {
+            int cmp = valueCompare(a[sortIdx], b[sortIdx]);
             return asc ? cmp < 0 : cmp > 0;
         });
     }
-
-    size_t start = offset_.value_or(0);
+    size_t start = offset.value_or(0);
     if (start >= rows.size()) rows.clear();
     else rows.erase(rows.begin(), rows.begin() + static_cast<std::ptrdiff_t>(start));
+    if (limit && rows.size() > *limit) rows.resize(*limit);
+}
 
-    if (limit_ && rows.size() > *limit_)
-        rows.resize(*limit_);
+QueryResult SelectCommand::execute(DatabaseManager& mgr, Session& session) {
+    auto& t = mgr.getCurrentDatabase(session).getTable(table_);
+    auto filteredRows = t.selectFiltered(condition_.get());
+
+    bool isStar  = exprs_.size() == 1 && !exprs_[0].isAggregate && exprs_[0].column == "*";
+    bool hasAgg  = std::any_of(exprs_.begin(), exprs_.end(), [](const SelectExpr& e) { return e.isAggregate; });
 
     QueryResult res;
     res.isSelect = true;
-
-    std::vector<size_t> indices;
-    if (projection_.size() == 1 && projection_[0] == "*") {
-        for (size_t i = 0; i < t.schema.columns.size(); ++i) indices.push_back(i);
+    if (isStar)
         for (const auto& col : t.schema.columns) res.columns.push_back(col.name);
-    } else {
-        for (const auto& col : projection_) {
-            indices.push_back(t.schema.getColumnIndex(col));
-            res.columns.push_back(col);
-        }
-    }
+    else
+        for (const auto& expr : exprs_) res.columns.push_back(expr.alias);
 
-    for (const auto& row : rows) {
-        Row projected;
-        for (size_t idx : indices) projected.push_back(row[idx]);
-        res.rows.push_back(projected);
+    if (!hasAgg && !groupBy_) {
+        if (orderBy_) {
+            size_t colIdx = t.schema.getColumnIndex(orderBy_->column);
+            bool asc = orderBy_->ascending;
+            std::stable_sort(filteredRows.begin(), filteredRows.end(),
+                [colIdx, asc](const Row& a, const Row& b) {
+                    int cmp = valueCompare(a[colIdx], b[colIdx]);
+                    return asc ? cmp < 0 : cmp > 0;
+                });
+        }
+        size_t start = offset_.value_or(0);
+        if (start >= filteredRows.size()) filteredRows.clear();
+        else filteredRows.erase(filteredRows.begin(), filteredRows.begin() + static_cast<std::ptrdiff_t>(start));
+        if (limit_ && filteredRows.size() > *limit_) filteredRows.resize(*limit_);
+
+        std::vector<size_t> indices;
+        if (isStar)
+            for (size_t i = 0; i < t.schema.columns.size(); ++i) indices.push_back(i);
+        else
+            for (const auto& expr : exprs_) indices.push_back(t.schema.getColumnIndex(expr.column));
+
+        for (const auto& row : filteredRows) {
+            Row projected;
+            for (size_t idx : indices) projected.push_back(row[idx]);
+            res.rows.push_back(projected);
+        }
+    } else {
+        if (groupBy_) {
+            size_t groupColIdx = t.schema.getColumnIndex(*groupBy_);
+            std::vector<Value> groupOrder;
+            std::vector<std::vector<Row>> groupData;
+            for (const auto& row : filteredRows) {
+                const Value& key = row[groupColIdx];
+                bool found = false;
+                for (size_t i = 0; i < groupOrder.size(); ++i) {
+                    if (valueCompare(groupOrder[i], key) == 0) {
+                        groupData[i].push_back(row); found = true; break;
+                    }
+                }
+                if (!found) { groupOrder.push_back(key); groupData.push_back({row}); }
+            }
+            for (size_t i = 0; i < groupOrder.size(); ++i)
+                res.rows.push_back(buildResultRow(exprs_, groupData[i], t.schema));
+        } else {
+            res.rows.push_back(buildResultRow(exprs_, filteredRows, t.schema));
+        }
+        applyOrderOffsetLimit(res.rows, orderBy_, res.columns, offset_, limit_);
     }
 
     res.affectedRows = res.rows.size();

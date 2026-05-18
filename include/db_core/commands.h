@@ -14,6 +14,15 @@ struct OrderBy {
     bool ascending = true;
 };
 
+enum class AggFunc { COUNT, SUM, MIN, MAX, AVG };
+
+struct SelectExpr {
+    bool isAggregate = false;
+    std::string column;
+    AggFunc func = AggFunc::COUNT;
+    std::string alias;
+};
+
 class Command {
 public:
     virtual ~Command() = default;
@@ -67,13 +76,15 @@ public:
 
 class SelectCommand : public Command {
     std::string table_;
-    std::vector<std::string> projection_;
+    std::vector<SelectExpr> exprs_;
     std::shared_ptr<ConditionNode> condition_;
+    std::optional<std::string> groupBy_;
     std::optional<OrderBy> orderBy_;
     std::optional<size_t> limit_;
     std::optional<size_t> offset_;
 public:
-    SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c,
+    SelectCommand(std::string t, std::vector<SelectExpr> exprs, std::shared_ptr<ConditionNode> c,
+                  std::optional<std::string> groupBy = std::nullopt,
                   std::optional<OrderBy> orderBy = std::nullopt,
                   std::optional<size_t> limit = std::nullopt,
                   std::optional<size_t> offset = std::nullopt);
