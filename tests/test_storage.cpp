@@ -35,6 +35,44 @@ TEST(StorageTest, SaveAndLoadIdentity) {
     }
 }
 
+TEST(StorageTest, TransactionRollback) {
+    DatabaseManager& mgr = DatabaseManager::instance();
+    mgr.createDatabase("txdb");
+    mgr.useDatabase("txdb");
+    mgr.getCurrentDatabase().createTable("t", TableSchema{{{"x", DataType::INT}}});
+    mgr.getCurrentDatabase().getTable("t").insert({42});
+
+    mgr.beginTransaction();
+    mgr.getCurrentDatabase().getTable("t").insert({99});
+    EXPECT_EQ(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr).size(), 2u);
+
+    mgr.rollbackTransaction();
+    EXPECT_EQ(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr).size(), 1u);
+    EXPECT_EQ(std::get<int>(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr)[0][0]), 42);
+}
+
+TEST(StorageTest, TransactionCommit) {
+    DatabaseManager& mgr = DatabaseManager::instance();
+    mgr.useDatabase("txdb");
+
+    mgr.beginTransaction();
+    mgr.getCurrentDatabase().getTable("t").insert({7});
+    mgr.commitTransaction();
+
+    EXPECT_FALSE(mgr.isInTransaction());
+    EXPECT_EQ(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr).size(), 2u);
+}
+
+TEST(StorageTest, NestedTransactionThrows) {
+    DatabaseManager& mgr = DatabaseManager::instance();
+    mgr.beginTransaction();
+    EXPECT_THROW(mgr.beginTransaction(), std::runtime_error);
+    mgr.rollbackTransaction();
+
+    EXPECT_THROW(mgr.commitTransaction(), std::runtime_error);
+    EXPECT_THROW(mgr.rollbackTransaction(), std::runtime_error);
+}
+
 TEST(StorageTest, CorruptedFileHandling) {
     std::string testPath = "./data";
     std::filesystem::create_directories(testPath);

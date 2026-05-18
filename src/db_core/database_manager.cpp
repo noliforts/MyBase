@@ -22,3 +22,29 @@ Database& DatabaseManager::getCurrentDatabase() {
     if (currentDb_.empty()) throw std::runtime_error("No database selected");
     return databases_[currentDb_];
 }
+
+void DatabaseManager::beginTransaction() {
+    if (inTransaction_) throw std::runtime_error("Transaction already in progress");
+    snapshot_ = databases_;
+    snapshotCurrentDb_ = currentDb_;
+    inTransaction_ = true;
+    logger_->log("Transaction started");
+}
+
+void DatabaseManager::commitTransaction() {
+    if (!inTransaction_) throw std::runtime_error("No active transaction");
+    snapshot_.reset();
+    snapshotCurrentDb_.clear();
+    inTransaction_ = false;
+    logger_->log("Transaction committed");
+}
+
+void DatabaseManager::rollbackTransaction() {
+    if (!inTransaction_) throw std::runtime_error("No active transaction");
+    databases_ = std::move(*snapshot_);
+    currentDb_ = snapshotCurrentDb_;
+    snapshot_.reset();
+    snapshotCurrentDb_.clear();
+    inTransaction_ = false;
+    logger_->log("Transaction rolled back");
+}

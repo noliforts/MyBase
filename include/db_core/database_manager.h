@@ -3,6 +3,7 @@
 #include "storage_engine.h"
 #include "logger.h"
 #include <memory>
+#include <optional>
 
 class DatabaseManager {
     std::map<std::string, Database> databases_;
@@ -10,13 +11,16 @@ class DatabaseManager {
     std::unique_ptr<Logger> logger_;
     std::string currentDb_;
 
+    bool inTransaction_ = false;
+    std::optional<std::map<std::string, Database>> snapshot_;
+    std::string snapshotCurrentDb_;
+
     DatabaseManager() : logger_(std::make_unique<ConsoleLogger>()) {}
 public:
     static DatabaseManager& instance() {
         static DatabaseManager inst;
         return inst;
     }
-
 
     void setStorageEngine(std::unique_ptr<StorageEngine> se) { storage_ = std::move(se); }
     void setLogger(std::unique_ptr<Logger> lg) { logger_ = std::move(lg); }
@@ -31,9 +35,15 @@ public:
 
     Database& getCurrentDatabase();
     bool hasCurrentDatabase() const { return !currentDb_.empty(); }
+    bool isInTransaction() const { return inTransaction_; }
 
-    QueryResult execute(const std::string& sql);
+    void beginTransaction();
+    void commitTransaction();
+    void rollbackTransaction();
 
-    void saveAll() { if (storage_) storage_->saveAll(*this); }
+    void saveAll() {
+        if (inTransaction_) return;
+        if (storage_) storage_->saveAll(*this);
+    }
     void loadAll() { if (storage_) storage_->loadAll(*this); }
 };
