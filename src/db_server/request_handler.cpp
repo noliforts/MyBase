@@ -6,14 +6,23 @@
 
 Response SqlRequestHandler::handle(const Request& req) {
     try {
-        Lexer lexer(req.sql);
-        Parser<Lexer> parser(lexer);
-        auto cmd = parser.parse();
-
         auto& mgr = DatabaseManager::instance();
         std::lock_guard<std::mutex> lock(mgr.mutex());
-        Response res = cmd->execute(mgr, session_);
+
+        Lexer lexer(req.sql);
+        Parser<Lexer> parser(lexer);
+
+        Response res;
+        bool executed = false;
+        while (auto cmd = parser.parse()) {
+            res = cmd->execute(mgr, session_);
+            executed = true;
+        }
+
         mgr.saveAll(session_);
+
+        if (!executed)
+            return {false, false, {}, {}, {}, 0, "Empty statement", true};
         return res;
     } catch (const std::exception& e) {
         return {false, false, {}, {}, {}, 0, e.what(), true};

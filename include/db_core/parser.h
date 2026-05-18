@@ -135,6 +135,9 @@ SelectExpr Parser<LexerT>::parseSelectExpr() {
 
 template<typename LexerT>
 std::unique_ptr<Command> Parser<LexerT>::parse() {
+    if (lexer_.peekToken().type == TokenType::END_OF_FILE)
+        return nullptr;
+
     Token t = lexer_.peekToken();
 
     if (match(TokenType::CREATE)) {

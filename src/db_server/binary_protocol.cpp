@@ -24,9 +24,20 @@ std::vector<uint8_t> BinaryProtocol::serializeResponse(const Response& resp) {
             for (const auto& val : row) {
                 std::visit([&data](auto&& arg) {
                     using T = std::decay_t<decltype(arg)>;
-                    if constexpr (std::is_same_v<T, std::string>) data += arg + "\t";
-                    else if constexpr (std::is_same_v<T, std::nullptr_t>) data += "NULL\t";
-                    else data += std::to_string(arg) + "\t";
+                    if constexpr (std::is_same_v<T, std::string>) {
+                        data += arg + "\t";
+                    } else if constexpr (std::is_same_v<T, std::nullptr_t>) {
+                        data += "NULL\t";
+                    } else if constexpr (std::is_same_v<T, bool>) {
+                        data += (arg ? "true" : "false");
+                        data += "\t";
+                    } else if constexpr (std::is_same_v<T, float>) {
+                        char buf[32];
+                        std::snprintf(buf, sizeof(buf), "%g", arg);
+                        data += std::string(buf) + "\t";
+                    } else {
+                        data += std::to_string(arg) + "\t";
+                    }
                 }, val);
             }
             data += "\n";
