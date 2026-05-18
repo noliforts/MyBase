@@ -106,40 +106,45 @@ void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
             std::string dbName = matches[1].str();
             std::string tableName = matches[2].str();
 
-            std::ifstream file(entry.path());
-            if (!file.is_open()) continue;
+            try {
+                std::ifstream file(entry.path());
+                if (!file.is_open()) continue;
 
-            std::string line;
-            TableSchema schema;
-            std::vector<Row> rows;
+                std::string line;
+                TableSchema schema;
+                std::vector<Row> rows;
 
-            if (std::getline(file, line) && !line.empty()) {
-                json schemaJson = json::parse(line);
-                for (const auto& colJ : schemaJson) {
-                    schema.columns.push_back({
-                        colJ["name"].get<std::string>(),
-                        stringToDataType(colJ["type"].get<std::string>())
-                    });
+                if (std::getline(file, line) && !line.empty()) {
+                    json schemaJson = json::parse(line);
+                    for (const auto& colJ : schemaJson) {
+                        schema.columns.push_back({
+                            colJ["name"].get<std::string>(),
+                            stringToDataType(colJ["type"].get<std::string>())
+                        });
+                    }
                 }
-            }
 
-            while (std::getline(file, line)) {
-                if (line.empty()) continue;
-                json rowJson = json::parse(line);
-                Row row;
-                for (size_t i = 0; i < rowJson.size(); ++i) {
-                    row.push_back(jsonToValue(rowJson[i], schema.columns[i].type));
+                while (std::getline(file, line)) {
+                    if (line.empty()) continue;
+                    json rowJson = json::parse(line);
+                    Row row;
+                    for (size_t i = 0; i < rowJson.size(); ++i) {
+                        row.push_back(jsonToValue(rowJson[i], schema.columns[i].type));
+                    }
+                    rows.push_back(row);
                 }
-                rows.push_back(row);
+
+                auto& db = mgr.getDatabases()[dbName];
+                if (db.name.empty()) db.name = dbName;
+
+                Table restoredTable;
+                restoredTable.schema = schema;
+                restoredTable.rows = rows;
+
+                db.tables[tableName] = restoredTable;
+            } catch (const std::exception& e) {
+                std::cerr << "[WARN] Skipping corrupt file " << fileName << ": " << e.what() << "\n";
             }
-
-            auto& db = mgr.getDatabases()[dbName];
-
-            Table restoredTable;
-            restoredTable.schema = schema;
-            restoredTable.rows = rows;
-
-            db.tables[tableName] = restoredTable;
         }
     }
 }
