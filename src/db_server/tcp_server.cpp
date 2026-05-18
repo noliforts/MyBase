@@ -1,5 +1,5 @@
 #include "db_server/tcp_server.h"
-#include "db_core/database_manager.h"
+#include "db_server/request_handler.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include <thread>
 
 TcpServer::TcpServer(std::string host, int port, std::unique_ptr<Protocol> protocol)
     : host_(std::move(host)), port_(port), server_fd_(-1), protocol_(std::move(protocol)) {}
@@ -36,7 +37,7 @@ void TcpServer::start() {
         throw std::runtime_error("Bind failed on " + host_ + ":" + std::to_string(port_));
     }
 
-    if (listen(server_fd_, 3) < 0) {
+    if (listen(server_fd_, 64) < 0) {
         throw std::runtime_error("Listen failed");
     }
 
@@ -46,21 +47,23 @@ void TcpServer::start() {
         int client_socket = accept(server_fd_, nullptr, nullptr);
         if (client_socket < 0) continue;
 
-        std::string received;
-        char buf[4096];
-        ssize_t n;
-        while ((n = read(client_socket, buf, sizeof(buf))) > 0)
-            received.append(buf, n);
+        std::thread([this, client_socket]() {
+            std::string received;
+            char buf[4096];
+            ssize_t n;
+            while ((n = read(client_socket, buf, sizeof(buf))) > 0)
+                received.append(buf, n);
 
-        if (!received.empty()) {
-            std::vector<uint8_t> raw_data(received.begin(), received.end());
-            Request req = protocol_->parseRequest(raw_data);
-            Response res = handler_.handle(req);
-            std::vector<uint8_t> out = protocol_->serializeResponse(res);
-            send(client_socket, out.data(), out.size(), 0);
-        }
+            if (!received.empty()) {
+                SqlRequestHandler handler;
+                std::vector<uint8_t> raw(received.begin(), received.end());
+                Request req = protocol_->parseRequest(raw);
+                Response res = handler.handle(req);
+                std::vector<uint8_t> out = protocol_->serializeResponse(res);
+                send(client_socket, out.data(), out.size(), 0);
+            }
 
-        close(client_socket);
-        DatabaseManager::instance().saveAll();
+            close(client_socket);
+        }).detach();
     }
 }
