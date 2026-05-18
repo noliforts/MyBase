@@ -5,16 +5,13 @@
 #include <stdexcept>
 #include <cstddef>
 
-// Перечисление поддерживаемых типов данных в таблицах
 enum class DataType { INT, FLOAT, BOOL, TEXT, VARCHAR };
 
-// Структура для описания одной колонки (Имя + Тип)
 struct ColumnSchema {
     std::string name;
     DataType type;
 };
 
-// Структура для описания схемы всей таблицы (Список колонок)
 struct TableSchema {
     std::vector<ColumnSchema> columns;
 
@@ -34,7 +31,6 @@ struct TableSchema {
 using Value = std::variant<int, float, bool, std::string, std::nullptr_t>;
 using Row = std::vector<Value>;
 
-// Результат выполнения любого SQL запроса для передачи по сети
 struct QueryResult {
     bool isSelect = false;
     bool isDDL = false;

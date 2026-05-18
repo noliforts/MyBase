@@ -42,10 +42,10 @@ bool Parser<LexerT>::match(TokenType type) {
 
 template<typename LexerT>
 DataType Parser<LexerT>::parseType() {
-    if (match(TokenType::INT_TYPE)) return DataType::INT;
+    if (match(TokenType::INT_TYPE))   return DataType::INT;
     if (match(TokenType::FLOAT_TYPE)) return DataType::FLOAT;
-    if (match(TokenType::BOOL_TYPE)) return DataType::BOOL;
-    if (match(TokenType::TEXT_TYPE)) return DataType::TEXT;
+    if (match(TokenType::BOOL_TYPE))  return DataType::BOOL;
+    if (match(TokenType::TEXT_TYPE))  return DataType::TEXT;
     if (match(TokenType::VARCHAR_TYPE)) {
         expect(TokenType::LPAREN);
         lexer_.nextToken();
@@ -58,11 +58,11 @@ DataType Parser<LexerT>::parseType() {
 template<typename LexerT>
 Value Parser<LexerT>::parseLiteral() {
     Token t = lexer_.nextToken();
-    if (t.type == TokenType::INT_LIT) return std::stoi(t.lexeme);
-    if (t.type == TokenType::FLOAT_LIT) return std::stof(t.lexeme);
-    if (t.type == TokenType::BOOL_LIT) return t.lexeme == "TRUE" || t.lexeme == "true";
+    if (t.type == TokenType::INT_LIT)    return std::stoi(t.lexeme);
+    if (t.type == TokenType::FLOAT_LIT)  return std::stof(t.lexeme);
+    if (t.type == TokenType::BOOL_LIT)   return t.lexeme == "TRUE" || t.lexeme == "true";
     if (t.type == TokenType::STRING_LIT) return t.lexeme;
-    if (t.type == TokenType::NULL_LIT) return nullptr;
+    if (t.type == TokenType::NULL_LIT)   return nullptr;
     throw std::runtime_error("Expected literal value");
 }
 
@@ -137,8 +137,6 @@ template<typename LexerT>
 std::unique_ptr<Command> Parser<LexerT>::parse() {
     if (lexer_.peekToken().type == TokenType::END_OF_FILE)
         return nullptr;
-
-    Token t = lexer_.peekToken();
 
     if (match(TokenType::CREATE)) {
         if (match(TokenType::DATABASE)) {

@@ -169,7 +169,9 @@ QueryResult SelectCommand::execute(DatabaseManager& mgr, Session& session) {
         if (orderBy_) {
             size_t colIdx = t.schema.getColumnIndex(orderBy_->column);
             bool asc = orderBy_->ascending;
-            std::stable_sort(filteredRows.begin(), filteredRows.end(),
+            // stable_sort сохраняет порядок вставки для равных значений,
+        // что делает вывод детерминированным при одинаковых ключах сортировки.
+        std::stable_sort(filteredRows.begin(), filteredRows.end(),
                 [colIdx, asc](const Row& a, const Row& b) {
                     int cmp = valueCompare(a[colIdx], b[colIdx]);
                     return asc ? cmp < 0 : cmp > 0;

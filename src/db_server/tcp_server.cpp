@@ -47,6 +47,8 @@ void TcpServer::start() {
         int client_socket = accept(server_fd_, nullptr, nullptr);
         if (client_socket < 0) continue;
 
+        // detach вместо join: серверный цикл никогда не завершается, поэтому
+        // накапливать joinable-потоки некуда. Поток сам уничтожает себя при закрытии сокета.
         std::thread([this, client_socket]() {
             std::string received;
             char buf[4096];
