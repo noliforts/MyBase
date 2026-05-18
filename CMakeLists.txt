@@ -19,6 +19,14 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+FetchContent_Declare(
+  replxx
+  URL https://github.com/AmokHuginnsson/replxx/archive/refs/tags/release-0.0.4.zip
+)
+set(REPLXX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(REPLXX_BUILD_PACKAGE  OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(replxx)
+
 include_directories(include)
 
 file(GLOB_RECURSE CORE_SOURCES src/db_core/*.cpp)
@@ -39,7 +47,8 @@ target_link_libraries(db_client_lib PRIVATE db_core)
 file(GLOB_RECURSE CLIENT_CLI_SOURCES src/db_client/*.cpp)
 add_executable(db_client ${CLIENT_CLI_SOURCES})
 # Линкуем клиент исключительно с его библиотекой по ТЗ!
-target_link_libraries(db_client PRIVATE db_client_lib)
+target_link_libraries(db_client PRIVATE db_client_lib replxx)
+target_include_directories(db_client PRIVATE ${replxx_SOURCE_DIR}/include)
 
 
 
