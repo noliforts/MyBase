@@ -28,6 +28,7 @@
 - **LIMIT / OFFSET** — пагинация
 - **Многострочный INSERT** — `INSERT INTO t VALUES (…), (…), (…)`
 - **Именованные колонки в INSERT** — `INSERT INTO t (a, b) VALUES (…)`
+- **Импорт и экспорт (CSV)** — `EXPORT TABLE <t> TO '<p>'` и `IMPORT TABLE <t> FROM '<p>'` для миграции и бэкапов
 - **Многопоточность** — каждое TCP-соединение обслуживается в отдельном потоке
 
 ### CLI-интерфейс
@@ -107,6 +108,24 @@ SELECT * FROM products ORDER BY price DESC;
 └────┴───────────┴───────┴────────┘
   3 rows in set (0.42 ms)
 ```
+
+### Импорт и экспорт (CSV)
+
+Выгрузка данных из СУБД во внешний файл и их последующее восстановление:
+
+```sql
+-- Экспортируем данные таблицы в CSV-файл на сервере
+EXPORT TABLE products TO './products_backup.csv';
+
+-- Удаляем таблицу для проверки персистентности
+DROP TABLE products;
+
+-- Пересоздаем пустую структуру
+CREATE TABLE products (id INT, name VARCHAR(64), price FLOAT, active BOOL);
+
+-- Импортируем данные обратно из файла
+IMPORT TABLE products FROM './products_backup.csv';
+
 
 ### Агрегации
 
