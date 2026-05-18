@@ -59,6 +59,8 @@ void JsonFileStorageEngine::saveDatabase(const Database& db, const std::string& 
     for (const auto& [tableName, _] : db.tables)
         validFiles.insert(tableName + ".jsonl");
 
+    // Удаляем файлы таблиц, которых больше нет в памяти (DROP TABLE),
+    // иначе при следующей загрузке они появятся снова.
     for (const auto& entry : std::filesystem::directory_iterator(dbPath)) {
         if (entry.is_regular_file() && entry.path().extension() == ".jsonl")
             if (!validFiles.count(entry.path().filename().string()))

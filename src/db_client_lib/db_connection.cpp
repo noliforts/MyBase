@@ -5,6 +5,9 @@
 #include <cstring>
 
 DbResult TcpDbConnection::execute(const std::string& query) {
+    // Новый сокет на каждый запрос: сервер держит сессию только на время
+    // одного соединения. Клиент компенсирует это, предваряя запрос строкой
+    // "USE db;\n", чтобы оба выражения шли в одном TCP-соединении.
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in serv_addr{};
     serv_addr.sin_family = AF_INET;

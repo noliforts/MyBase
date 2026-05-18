@@ -1,5 +1,4 @@
 #include "db_server/protocol.h"
-#include <sstream>
 
 Request BinaryProtocol::parseRequest(const std::vector<uint8_t>& raw) {
     return {std::string(raw.begin(), raw.end())};
@@ -32,6 +31,7 @@ std::vector<uint8_t> BinaryProtocol::serializeResponse(const Response& resp) {
                         data += (arg ? "true" : "false");
                         data += "\t";
                     } else if constexpr (std::is_same_v<T, float>) {
+                        // %g убирает незначащие нули: 9.990000 -> 9.99
                         char buf[32];
                         std::snprintf(buf, sizeof(buf), "%g", arg);
                         data += std::string(buf) + "\t";

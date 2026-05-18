@@ -39,7 +39,7 @@ static const std::vector<std::string> KW_DML     = {"SELECT","INSERT","UPDATE","
 static const std::vector<std::string> KW_DDL     = {"CREATE","DROP","DATABASE","TABLE","USE"};
 static const std::vector<std::string> KW_CLAUSE  = {"FROM","WHERE","SET","INTO","VALUES",
                                                      "ORDER","BY","GROUP","LIMIT","OFFSET",
-                                                     "ASC","DESC","HAVING"};
+                                                     "ASC","DESC"};
 static const std::vector<std::string> KW_LOGIC   = {"AND","OR","NOT","IN","LIKE"};
 static const std::vector<std::string> KW_TXN     = {"BEGIN","COMMIT","ROLLBACK"};
 static const std::vector<std::string> KW_TYPES   = {"INT","FLOAT","BOOL","TEXT","VARCHAR"};
@@ -57,6 +57,13 @@ static std::string toUpper(const std::string& s) {
     std::string r = s;
     for (auto& c : r) c = (char)std::toupper((unsigned char)c);
     return r;
+}
+
+static std::string firstKeyword(const std::string& q) {
+    size_t s = q.find_first_not_of(" \t\n\r");
+    if (s == std::string::npos) return "";
+    size_t e = q.find_first_of(" \t\n\r;", s);
+    return toUpper(e == std::string::npos ? q.substr(s) : q.substr(s, e - s));
 }
 
 template<class V>
@@ -370,6 +377,8 @@ int main(int argc, char** argv) {
         if (arg == "--port" && i+1 < argc) port = std::stoi(argv[++i]);
     }
 
+    // Цвета отключаем при перенаправлении вывода, чтобы ANSI-коды
+    // не засоряли файлы и пайпы.
     g_color = isatty(STDOUT_FILENO);
 
     TcpDbConnection conn(host, port);
@@ -380,6 +389,8 @@ int main(int argc, char** argv) {
     rx.install_window_change_handler();
 
     const char* home = getenv("HOME");
+    // История хранится в домашней директории, а не рядом с бинарником,
+    // чтобы пережить пересборку проекта.
     std::string histFile = std::string(home ? home : ".") + "/.mybase_history";
     rx.history_load(histFile);
     rx.set_max_history_size(1000);
@@ -396,6 +407,8 @@ int main(int argc, char** argv) {
     std::vector<std::string> history;
     std::string accumulated;
     std::string currentDb;
+    bool inTransaction = false;
+    std::vector<std::string> txBuffer;
 
     while (true) {
         std::string prompt;
@@ -404,9 +417,13 @@ int main(int argc, char** argv) {
                 prompt = "\033[1;92mmybase\033[0m";
                 if (!currentDb.empty())
                     prompt += "\033[90m(\033[0m\033[93m" + currentDb + "\033[0m\033[90m)\033[0m";
+                if (inTransaction)
+                    prompt += "\033[35m[txn]\033[0m";
                 prompt += "\033[90m > \033[0m";
             } else {
-                prompt = currentDb.empty() ? "mybase > " : "mybase(" + currentDb + ") > ";
+                prompt = currentDb.empty() ? "mybase" : "mybase(" + currentDb + ")";
+                if (inTransaction) prompt += "[txn]";
+                prompt += " > ";
             }
         } else {
             if (g_color)
@@ -459,13 +476,17 @@ int main(int argc, char** argv) {
             if (line == "\\status") {
                 rx.history_add(line);
                 std::cout << "\n"
-                          << A(C::DIM)  << "  Host      " << A(C::RST)
+                          << A(C::DIM)  << "  Host         " << A(C::RST)
                           << A(C::BGRN) << host << ":" << port << A(C::RST) << "\n"
-                          << A(C::DIM)  << "  Database  " << A(C::RST)
+                          << A(C::DIM)  << "  Database     " << A(C::RST)
                           << (currentDb.empty()
                               ? std::string(A(C::DIM)) + "(none)" + A(C::RST)
                               : std::string(A(C::YLW)) + currentDb + A(C::RST)) << "\n"
-                          << A(C::DIM)  << "  History   " << history.size() << " queries\n\n"
+                          << A(C::DIM)  << "  Transaction  " << A(C::RST)
+                          << (inTransaction
+                              ? std::string(A(C::MGT)) + "active (" + std::to_string(txBuffer.size()) + " queued)" + A(C::RST)
+                              : std::string(A(C::DIM)) + "none" + A(C::RST)) << "\n"
+                          << A(C::DIM)  << "  History      " << history.size() << " queries\n\n"
                           << A(C::RST);
                 continue;
             }
@@ -484,6 +505,8 @@ int main(int argc, char** argv) {
         rx.history_add(query);
         history.push_back(query);
 
+        // Отслеживаем текущую базу, чтобы отображать её в промпте
+        // и передавать на сервер в составе каждого запроса.
         {
             std::string trimQ = query;
             size_t s = trimQ.find_first_not_of(" \t\n\r");
@@ -498,6 +521,108 @@ int main(int argc, char** argv) {
             }
         }
 
+        std::string kw = firstKeyword(query);
+
+        // BEGIN/COMMIT/ROLLBACK перехватываются на стороне клиента:
+        // транзакция буферизуется локально и отправляется одним пакетом при COMMIT,
+        // чтобы BEGIN и все DML попали в одно TCP-соединение с одной Session.
+        if (kw == "BEGIN") {
+            std::cout << "\n";
+            if (inTransaction) {
+                std::cout << A(C::RED) << A(C::BOLD) << "  ✗  " << A(C::RST)
+                          << A(C::RED) << "Already in a transaction\n" << A(C::RST);
+            } else {
+                inTransaction = true;
+                txBuffer.clear();
+                std::cout << A(C::BGRN) << A(C::BOLD) << "  ✓  " << A(C::RST)
+                          << "Transaction started.\n";
+            }
+            std::cout << "\n";
+            continue;
+        }
+
+        if (kw == "ROLLBACK") {
+            std::cout << "\n";
+            if (!inTransaction) {
+                std::cout << A(C::RED) << A(C::BOLD) << "  ✗  " << A(C::RST)
+                          << A(C::RED) << "No active transaction\n" << A(C::RST);
+            } else {
+                size_t n = txBuffer.size();
+                inTransaction = false;
+                txBuffer.clear();
+                std::cout << A(C::YLW) << A(C::BOLD) << "  ↩  " << A(C::RST)
+                          << "Transaction rolled back";
+                if (n > 0)
+                    std::cout << " (" << n << " statement" << (n > 1 ? "s" : "") << " discarded)";
+                std::cout << ".\n";
+            }
+            std::cout << "\n";
+            continue;
+        }
+
+        if (kw == "COMMIT") {
+            std::cout << "\n";
+            if (!inTransaction) {
+                std::cout << A(C::RED) << A(C::BOLD) << "  ✗  " << A(C::RST)
+                          << A(C::RED) << "No active transaction\n" << A(C::RST) << "\n";
+                continue;
+            }
+            std::string batch;
+            if (!currentDb.empty()) batch = "USE " + currentDb + ";\n";
+            batch += "BEGIN;\n";
+            for (const auto& stmt : txBuffer) batch += stmt + "\n";
+            batch += "COMMIT;";
+            inTransaction = false;
+            txBuffer.clear();
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+            DbResult res = conn.execute(batch);
+            double ms = std::chrono::duration<double, std::milli>(
+                            std::chrono::high_resolution_clock::now() - t0).count();
+            if (!res.success) {
+                std::cout << A(C::RED) << A(C::BOLD) << "  ✗  " << A(C::RST)
+                          << A(C::RED) << "Connection error — is the server running?\n" << A(C::RST);
+            } else {
+                printResult(res.output, ms);
+            }
+            std::cout << "\n";
+            continue;
+        }
+
+        if (inTransaction) {
+            if (kw == "SELECT") {
+                // Preview: отправляем BEGIN + буфер + SELECT без COMMIT.
+                // Сервер вернёт результат SELECT, видящего uncommitted-изменения,
+                // и автоматически откатит транзакцию после ответа.
+                std::string batch;
+                if (!currentDb.empty()) batch = "USE " + currentDb + ";\n";
+                batch += "BEGIN;\n";
+                for (const auto& stmt : txBuffer) batch += stmt + "\n";
+                batch += query;
+
+                auto t0 = std::chrono::high_resolution_clock::now();
+                DbResult res = conn.execute(batch);
+                double ms = std::chrono::duration<double, std::milli>(
+                                std::chrono::high_resolution_clock::now() - t0).count();
+                std::cout << "\n";
+                if (!res.success) {
+                    std::cout << A(C::RED) << A(C::BOLD) << "  ✗  " << A(C::RST)
+                              << A(C::RED) << "Connection error — is the server running?\n" << A(C::RST);
+                } else {
+                    printResult(res.output, ms);
+                }
+                std::cout << "\n";
+            } else {
+                txBuffer.push_back(query);
+                std::cout << "\n" << A(C::DIM) << "  ·  Queued (" << txBuffer.size()
+                          << " statement" << (txBuffer.size() > 1 ? "s" : "") << " pending)\n"
+                          << A(C::RST) << "\n";
+            }
+            continue;
+        }
+
+        // USE db; отправляется первым выражением: оба попадают в одно TCP-соединение
+        // и одну Session, поэтому следующий запрос видит выбранную базу данных.
         std::string sendQuery = query;
         if (!currentDb.empty() && toUpper(query.substr(0, 4)) != "USE ")
             sendQuery = "USE " + currentDb + ";\n" + query;

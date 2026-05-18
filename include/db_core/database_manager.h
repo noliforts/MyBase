@@ -10,6 +10,8 @@ class DatabaseManager {
     std::map<std::string, Database> databases_;
     std::unique_ptr<StorageEngine> storage_;
     std::unique_ptr<Logger> logger_;
+    // Один глобальный мьютекс на весь менеджер: каждое TCP-соединение
+    // обрабатывается в отдельном потоке, мьютекс гарантирует сериализацию.
     std::mutex mtx_;
 
     DatabaseManager() : logger_(std::make_unique<ConsoleLogger>()) {}
@@ -37,6 +39,8 @@ public:
     void rollbackTransaction(Session& session);
 
     void saveAll(const Session& session) {
+        // Во время транзакции данные не сохраняются: COMMIT запишет финальное
+        // состояние, ROLLBACK восстановит снимок без каких-либо записей на диск.
         if (session.inTransaction) return;
         if (storage_) storage_->saveAll(*this);
     }
