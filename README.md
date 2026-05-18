@@ -126,10 +126,10 @@ CREATE TABLE products (id INT, name VARCHAR(64), price FLOAT, active BOOL);
 -- Импортируем данные обратно из файла
 IMPORT TABLE products FROM './products_backup.csv';
 
+```sql
 
 ### Агрегации
 
-```sql
 SELECT COUNT(id), AVG(price), MAX(price) FROM products WHERE active = true;
 ```
 
