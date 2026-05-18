@@ -36,7 +36,10 @@ Token Lexer::nextToken() {
             {"BEGIN", TokenType::BEGIN}, {"COMMIT", TokenType::COMMIT}, {"ROLLBACK", TokenType::ROLLBACK},
             {"ORDER", TokenType::ORDER}, {"BY", TokenType::BY},
             {"ASC", TokenType::ASC}, {"DESC", TokenType::DESC},
-            {"LIMIT", TokenType::LIMIT}, {"OFFSET", TokenType::OFFSET}
+            {"LIMIT", TokenType::LIMIT}, {"OFFSET", TokenType::OFFSET},
+            {"GROUP", TokenType::GROUP},
+            {"COUNT", TokenType::COUNT}, {"SUM", TokenType::SUM},
+            {"MIN", TokenType::MIN}, {"MAX", TokenType::MAX}, {"AVG", TokenType::AVG}
         };
 
         if (keywords.count(upper)) return {keywords.at(upper), ident, line_, startCol};

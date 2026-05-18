@@ -19,6 +19,7 @@ class Parser {
     std::shared_ptr<ConditionNode> parseAndExpression();
     std::shared_ptr<ConditionNode> parsePrimaryCondition();
     std::shared_ptr<ConditionNode> parseOptionalWhere();
+    SelectExpr parseSelectExpr();
 
 public:
     explicit Parser(LexerT& lexer);
@@ -110,6 +111,29 @@ std::shared_ptr<ConditionNode> Parser<LexerT>::parseOptionalWhere() {
 }
 
 template<typename LexerT>
+SelectExpr Parser<LexerT>::parseSelectExpr() {
+    static const std::pair<TokenType, AggFunc> aggTokens[] = {
+        {TokenType::COUNT, AggFunc::COUNT}, {TokenType::SUM, AggFunc::SUM},
+        {TokenType::MIN,   AggFunc::MIN},   {TokenType::MAX, AggFunc::MAX},
+        {TokenType::AVG,   AggFunc::AVG},
+    };
+    for (auto& [tok, func] : aggTokens) {
+        if (lexer_.peekToken().type == tok) {
+            Token funcTok = lexer_.nextToken();
+            std::string upper;
+            for (char c : funcTok.lexeme) upper += std::toupper(c);
+            expect(TokenType::LPAREN);
+            Token colTok = lexer_.nextToken();
+            std::string col = (colTok.type == TokenType::STAR) ? "*" : colTok.lexeme;
+            expect(TokenType::RPAREN);
+            return {true, col, func, upper + "(" + col + ")"};
+        }
+    }
+    std::string col = lexer_.nextToken().lexeme;
+    return {false, col, AggFunc::COUNT, col};
+}
+
+template<typename LexerT>
 std::unique_ptr<Command> Parser<LexerT>::parse() {
     Token t = lexer_.peekToken();
 
@@ -180,14 +204,21 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
         return std::make_unique<InsertCommand>(table, targetColumns, allRowsVals);
     }
     else if (match(TokenType::SELECT)) {
-        std::vector<std::string> proj;
-        if (match(TokenType::STAR)) proj.push_back("*");
+        std::vector<SelectExpr> exprs;
+        if (match(TokenType::STAR))
+            exprs.push_back({false, "*", AggFunc::COUNT, "*"});
         else {
-            do { proj.push_back(lexer_.nextToken().lexeme); } while (match(TokenType::COMMA));
+            do { exprs.push_back(parseSelectExpr()); } while (match(TokenType::COMMA));
         }
         expect(TokenType::FROM);
         std::string table = lexer_.nextToken().lexeme;
         auto cond = parseOptionalWhere();
+
+        std::optional<std::string> groupBy;
+        if (match(TokenType::GROUP)) {
+            expect(TokenType::BY);
+            groupBy = lexer_.nextToken().lexeme;
+        }
 
         std::optional<OrderBy> orderBy;
         if (match(TokenType::ORDER)) {
@@ -208,7 +239,7 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
             offset = static_cast<size_t>(std::stoul(lexer_.nextToken().lexeme));
 
         expect(TokenType::SEMICOLON);
-        return std::make_unique<SelectCommand>(table, proj, cond, orderBy, limit, offset);
+        return std::make_unique<SelectCommand>(table, exprs, cond, groupBy, orderBy, limit, offset);
     }
     else if (match(TokenType::UPDATE)) {
         std::string table = lexer_.nextToken().lexeme;
