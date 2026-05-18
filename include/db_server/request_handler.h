@@ -1,9 +1,9 @@
 #pragma once
-#include <string>
-#include "db_core/types.h"
 #include "protocol.h"
+#include "db_core/session.h"
 
 class SqlRequestHandler {
+    Session session_;
 public:
     Response handle(const Request& req);
 };

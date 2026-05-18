@@ -3,33 +3,41 @@
 #include <filesystem>
 #include <fstream>
 
+static Session makeSession(const std::string& db = "") {
+    Session s;
+    s.currentDb = db;
+    return s;
+}
+
 TEST(StorageTest, SaveAndLoadIdentity) {
     {
         DatabaseManager& mgr = DatabaseManager::instance();
-        mgr.createDatabase("shop");
-        mgr.useDatabase("shop");
+        Session s;
+        mgr.createDatabase("shop", s);
+        mgr.useDatabase("shop", s);
 
         TableSchema schema;
         schema.columns = {{"id", DataType::INT}, {"title", DataType::TEXT}};
 
-        mgr.getCurrentDatabase().createTable("products", schema);
-        mgr.getCurrentDatabase().getTable("products").insert({101, std::string("Phone")});
+        mgr.getCurrentDatabase(s).createTable("products", schema);
+        mgr.getCurrentDatabase(s).getTable("products").insert({101, std::string("Phone")});
 
-        mgr.saveAll();
+        mgr.saveAll(s);
     }
 
     {
         DatabaseManager& mgr2 = DatabaseManager::instance();
+        Session s;
         mgr2.loadAll();
 
-        mgr2.useDatabase("shop");
-        auto& table = mgr2.getCurrentDatabase().getTable("products");
+        mgr2.useDatabase("shop", s);
+        auto& table = mgr2.getCurrentDatabase(s).getTable("products");
 
         EXPECT_EQ(table.schema.columns[0].name, "id");
         EXPECT_EQ(table.schema.columns[1].name, "title");
 
         auto rows = table.select({"*"}, nullptr);
-        ASSERT_EQ(rows.size(), 1);
+        ASSERT_EQ(rows.size(), 1u);
         EXPECT_EQ(std::get<int>(rows[0][0]), 101);
         EXPECT_EQ(std::get<std::string>(rows[0][1]), "Phone");
     }
@@ -37,40 +45,42 @@ TEST(StorageTest, SaveAndLoadIdentity) {
 
 TEST(StorageTest, TransactionRollback) {
     DatabaseManager& mgr = DatabaseManager::instance();
-    mgr.createDatabase("txdb");
-    mgr.useDatabase("txdb");
-    mgr.getCurrentDatabase().createTable("t", TableSchema{{{"x", DataType::INT}}});
-    mgr.getCurrentDatabase().getTable("t").insert({42});
+    Session s = makeSession();
+    mgr.createDatabase("txdb", s);
+    mgr.useDatabase("txdb", s);
+    mgr.getCurrentDatabase(s).createTable("t", TableSchema{{{"x", DataType::INT}}});
+    mgr.getCurrentDatabase(s).getTable("t").insert({42});
 
-    mgr.beginTransaction();
-    mgr.getCurrentDatabase().getTable("t").insert({99});
-    EXPECT_EQ(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr).size(), 2u);
+    mgr.beginTransaction(s);
+    mgr.getCurrentDatabase(s).getTable("t").insert({99});
+    EXPECT_EQ(mgr.getCurrentDatabase(s).getTable("t").select({"*"}, nullptr).size(), 2u);
 
-    mgr.rollbackTransaction();
-    EXPECT_EQ(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr).size(), 1u);
-    EXPECT_EQ(std::get<int>(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr)[0][0]), 42);
+    mgr.rollbackTransaction(s);
+    EXPECT_EQ(mgr.getCurrentDatabase(s).getTable("t").select({"*"}, nullptr).size(), 1u);
+    EXPECT_EQ(std::get<int>(mgr.getCurrentDatabase(s).getTable("t").select({"*"}, nullptr)[0][0]), 42);
 }
 
 TEST(StorageTest, TransactionCommit) {
     DatabaseManager& mgr = DatabaseManager::instance();
-    mgr.useDatabase("txdb");
+    Session s = makeSession("txdb");
 
-    mgr.beginTransaction();
-    mgr.getCurrentDatabase().getTable("t").insert({7});
-    mgr.commitTransaction();
+    mgr.beginTransaction(s);
+    mgr.getCurrentDatabase(s).getTable("t").insert({7});
+    mgr.commitTransaction(s);
 
-    EXPECT_FALSE(mgr.isInTransaction());
-    EXPECT_EQ(mgr.getCurrentDatabase().getTable("t").select({"*"}, nullptr).size(), 2u);
+    EXPECT_FALSE(s.inTransaction);
+    EXPECT_EQ(mgr.getCurrentDatabase(s).getTable("t").select({"*"}, nullptr).size(), 2u);
 }
 
 TEST(StorageTest, NestedTransactionThrows) {
     DatabaseManager& mgr = DatabaseManager::instance();
-    mgr.beginTransaction();
-    EXPECT_THROW(mgr.beginTransaction(), std::runtime_error);
-    mgr.rollbackTransaction();
+    Session s;
+    mgr.beginTransaction(s);
+    EXPECT_THROW(mgr.beginTransaction(s), std::runtime_error);
+    mgr.rollbackTransaction(s);
 
-    EXPECT_THROW(mgr.commitTransaction(), std::runtime_error);
-    EXPECT_THROW(mgr.rollbackTransaction(), std::runtime_error);
+    EXPECT_THROW(mgr.commitTransaction(s), std::runtime_error);
+    EXPECT_THROW(mgr.rollbackTransaction(s), std::runtime_error);
 }
 
 TEST(StorageTest, CorruptedFileHandling) {
@@ -82,6 +92,7 @@ TEST(StorageTest, CorruptedFileHandling) {
     corruptFile.close();
 
     DatabaseManager& mgr = DatabaseManager::instance();
+    Session s;
     EXPECT_NO_THROW(mgr.loadAll());
 
     std::filesystem::remove(testPath + "/corrupt_table.jsonl");

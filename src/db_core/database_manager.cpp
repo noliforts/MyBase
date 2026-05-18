@@ -1,50 +1,50 @@
 #include "db_core/database_manager.h"
 
-void DatabaseManager::createDatabase(const std::string& name) {
+void DatabaseManager::createDatabase(const std::string& name, Session& session) {
     if (databases_.count(name)) throw std::runtime_error("Database already exists");
     databases_[name] = Database(name);
     logger_->log("Created database: " + name);
 }
 
-void DatabaseManager::dropDatabase(const std::string& name) {
+void DatabaseManager::dropDatabase(const std::string& name, Session& session) {
     if (!databases_.erase(name)) throw std::runtime_error("Database not found");
-    if (currentDb_ == name) currentDb_.clear();
+    if (session.currentDb == name) session.currentDb.clear();
     logger_->log("Dropped database: " + name);
 }
 
-void DatabaseManager::useDatabase(const std::string& name) {
+void DatabaseManager::useDatabase(const std::string& name, Session& session) {
     if (!databases_.count(name)) throw std::runtime_error("Database not found");
-    currentDb_ = name;
+    session.currentDb = name;
     logger_->log("Switched to database: " + name);
 }
 
-Database& DatabaseManager::getCurrentDatabase() {
-    if (currentDb_.empty()) throw std::runtime_error("No database selected");
-    return databases_[currentDb_];
+Database& DatabaseManager::getCurrentDatabase(Session& session) {
+    if (session.currentDb.empty()) throw std::runtime_error("No database selected");
+    return databases_[session.currentDb];
 }
 
-void DatabaseManager::beginTransaction() {
-    if (inTransaction_) throw std::runtime_error("Transaction already in progress");
-    snapshot_ = databases_;
-    snapshotCurrentDb_ = currentDb_;
-    inTransaction_ = true;
+void DatabaseManager::beginTransaction(Session& session) {
+    if (session.inTransaction) throw std::runtime_error("Transaction already in progress");
+    session.snapshot = databases_;
+    session.snapshotCurrentDb = session.currentDb;
+    session.inTransaction = true;
     logger_->log("Transaction started");
 }
 
-void DatabaseManager::commitTransaction() {
-    if (!inTransaction_) throw std::runtime_error("No active transaction");
-    snapshot_.reset();
-    snapshotCurrentDb_.clear();
-    inTransaction_ = false;
+void DatabaseManager::commitTransaction(Session& session) {
+    if (!session.inTransaction) throw std::runtime_error("No active transaction");
+    session.snapshot.reset();
+    session.snapshotCurrentDb.clear();
+    session.inTransaction = false;
     logger_->log("Transaction committed");
 }
 
-void DatabaseManager::rollbackTransaction() {
-    if (!inTransaction_) throw std::runtime_error("No active transaction");
-    databases_ = std::move(*snapshot_);
-    currentDb_ = snapshotCurrentDb_;
-    snapshot_.reset();
-    snapshotCurrentDb_.clear();
-    inTransaction_ = false;
+void DatabaseManager::rollbackTransaction(Session& session) {
+    if (!session.inTransaction) throw std::runtime_error("No active transaction");
+    databases_ = std::move(*session.snapshot);
+    session.currentDb = session.snapshotCurrentDb;
+    session.snapshot.reset();
+    session.snapshotCurrentDb.clear();
+    session.inTransaction = false;
     logger_->log("Transaction rolled back");
 }
