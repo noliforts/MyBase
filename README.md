@@ -126,24 +126,24 @@ CREATE TABLE products (id INT, name VARCHAR(64), price FLOAT, active BOOL);
 -- Импортируем данные обратно из файла
 IMPORT TABLE products FROM './products_backup.csv';
 
-```sql
+```
 
 ### Агрегации
 
+```sql
 SELECT COUNT(id), AVG(price), MAX(price) FROM products WHERE active = true;
+
 ```
 
 ### Транзакции
-
-![transactions](gifs/transactions.gif)
 
 ```sql
 BEGIN;
 UPDATE products SET price = 0.01 WHERE id = 2;
 ROLLBACK;
 -- цена Gadget не изменилась
-```
 
+```
 ---
 
 ## Архитектура
