@@ -44,7 +44,13 @@ DataType Parser<LexerT>::parseType() {
     if (match(TokenType::INT_TYPE)) return DataType::INT;
     if (match(TokenType::FLOAT_TYPE)) return DataType::FLOAT;
     if (match(TokenType::BOOL_TYPE)) return DataType::BOOL;
-    if (match(TokenType::TEXT_TYPE) || match(TokenType::VARCHAR_TYPE)) return DataType::TEXT;
+    if (match(TokenType::TEXT_TYPE)) return DataType::TEXT;
+    if (match(TokenType::VARCHAR_TYPE)) {
+        expect(TokenType::LPAREN);
+        lexer_.nextToken();
+        expect(TokenType::RPAREN);
+        return DataType::TEXT;
+    }
     throw std::runtime_error("Unknown data type");
 }
 

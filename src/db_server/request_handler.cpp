@@ -11,6 +11,6 @@ Response SqlRequestHandler::handle(const Request& req) {
         return cmd->execute(DatabaseManager::instance());
     } catch (const std::exception& e) {
         // Возвращаем объект QueryResult в случае падения парсера
-        return {false, {}, {}, {}, 0, e.what(), true};
+        return {false, false, {}, {}, {}, 0, e.what(), true};
     }
 }

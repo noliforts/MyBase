@@ -4,21 +4,21 @@ CreateDatabaseCommand::CreateDatabaseCommand(std::string n) : name_(std::move(n)
 
 QueryResult CreateDatabaseCommand::execute(DatabaseManager& mgr) {
     mgr.createDatabase(name_);
-    return {false, {}, {}, {}, 0, "Database created.", false};
+    return {false, true, {}, {}, {}, 0, "Database '" + name_ + "' created.", false};
 }
 
 DropDatabaseCommand::DropDatabaseCommand(std::string n) : name_(std::move(n)) {}
 
 QueryResult DropDatabaseCommand::execute(DatabaseManager& mgr) {
     mgr.dropDatabase(name_);
-    return {false, {}, {}, {}, 0, "Database dropped.", false};
+    return {false, true, {}, {}, {}, 0, "Database '" + name_ + "' dropped.", false};
 }
 
 UseDatabaseCommand::UseDatabaseCommand(std::string n) : name_(std::move(n)) {}
 
 QueryResult UseDatabaseCommand::execute(DatabaseManager& mgr) {
     mgr.useDatabase(name_);
-    return {false, {}, {}, {}, 0, "Switched to database " + name_, false};
+    return {false, true, {}, {}, {}, 0, "Switched to database '" + name_ + "'.", false};
 }
 
 CreateTableCommand::CreateTableCommand(std::string n, std::vector<ColumnSchema> cols)
@@ -26,14 +26,14 @@ CreateTableCommand::CreateTableCommand(std::string n, std::vector<ColumnSchema> 
 
 QueryResult CreateTableCommand::execute(DatabaseManager& mgr) {
     mgr.getCurrentDatabase().createTable(name_, TableSchema{columns_});
-    return {false, {}, {}, {}, 0, "Table created.", false};
+    return {false, true, {}, {}, {}, 0, "Table '" + name_ + "' created.", false};
 }
 
 DropTableCommand::DropTableCommand(std::string n) : name_(std::move(n)) {}
 
 QueryResult DropTableCommand::execute(DatabaseManager& mgr) {
     mgr.getCurrentDatabase().tables.erase(name_);
-    return {false, {}, {}, {}, 0, "Table dropped.", false};
+    return {false, true, {}, {}, {}, 0, "Table '" + name_ + "' dropped.", false};
 }
 
 InsertCommand::InsertCommand(std::string t, std::vector<std::string> targetCols, std::vector<std::vector<Value>> allRowsVals)
@@ -61,7 +61,7 @@ QueryResult InsertCommand::execute(DatabaseManager& mgr) {
         insertedCount++;
     }
 
-    return {false, {}, {}, {}, insertedCount, "Rows inserted: " + std::to_string(insertedCount), false};
+    return {false, false, {}, {}, {}, insertedCount, "", false};
 }
 
 SelectCommand::SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c)
@@ -74,9 +74,7 @@ QueryResult SelectCommand::execute(DatabaseManager& mgr) {
     res.rows = t.select(projection_, condition_.get());
 
     if (projection_.size() == 1 && projection_[0] == "*") {
-        for (const auto& col : t.schema.columns) {
-            res.columns.push_back(col.name);
-        }
+        for (const auto& col : t.schema.columns) res.columns.push_back(col.name);
     } else {
         res.columns = projection_;
     }
@@ -89,7 +87,7 @@ UpdateCommand::UpdateCommand(std::string t, std::vector<std::pair<std::string, V
 
 QueryResult UpdateCommand::execute(DatabaseManager& mgr) {
     size_t count = mgr.getCurrentDatabase().getTable(table_).update(assignments_, condition_.get());
-    return {false, {}, {}, {}, count, "Rows updated: " + std::to_string(count), false};
+    return {false, false, {}, {}, {}, count, "", false};
 }
 
 DeleteCommand::DeleteCommand(std::string t, std::shared_ptr<ConditionNode> cond)
@@ -97,5 +95,5 @@ DeleteCommand::DeleteCommand(std::string t, std::shared_ptr<ConditionNode> cond)
 
 QueryResult DeleteCommand::execute(DatabaseManager& mgr) {
     size_t count = mgr.getCurrentDatabase().getTable(table_).remove(condition_.get());
-    return {false, {}, {}, {}, count, "Rows deleted: " + std::to_string(count), false};
+    return {false, false, {}, {}, {}, count, "", false};
 }

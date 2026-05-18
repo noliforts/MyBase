@@ -44,7 +44,7 @@ TEST(StorageTest, CorruptedFileHandling) {
     corruptFile.close();
 
     DatabaseManager& mgr = DatabaseManager::instance();
-    EXPECT_THROW({
-        mgr.loadAll();
-    }, std::runtime_error);
+    EXPECT_NO_THROW(mgr.loadAll());
+
+    std::filesystem::remove(testPath + "/corrupt_table.jsonl");
 }

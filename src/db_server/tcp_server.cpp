@@ -2,13 +2,14 @@
 #include "db_core/database_manager.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <iostream>
 #include <cstring>
 #include <vector>
 
-TcpServer::TcpServer(int port, std::unique_ptr<Protocol> protocol)
-    : port_(port), server_fd_(-1), protocol_(std::move(protocol)) {}
+TcpServer::TcpServer(std::string host, int port, std::unique_ptr<Protocol> protocol)
+    : host_(std::move(host)), port_(port), server_fd_(-1), protocol_(std::move(protocol)) {}
 
 TcpServer::~TcpServer() {
     if (server_fd_ != -1) {
@@ -27,18 +28,19 @@ void TcpServer::start() {
 
     sockaddr_in address{};
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
+    if (inet_pton(AF_INET, host_.c_str(), &address.sin_addr) <= 0)
+        throw std::runtime_error("Invalid host address: " + host_);
     address.sin_port = htons(port_);
 
     if (bind(server_fd_, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        throw std::runtime_error("Bind failed");
+        throw std::runtime_error("Bind failed on " + host_ + ":" + std::to_string(port_));
     }
 
     if (listen(server_fd_, 3) < 0) {
         throw std::runtime_error("Listen failed");
     }
 
-    std::cout << "Server listening on port " << port_ << std::endl;
+    std::cout << "Server listening on " << host_ << ":" << port_ << std::endl;
 
     while (true) {
         int client_socket = accept(server_fd_, nullptr, nullptr);
