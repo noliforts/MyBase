@@ -1,4 +1,5 @@
 #include "db_core/commands.h"
+#include <algorithm>
 
 CreateDatabaseCommand::CreateDatabaseCommand(std::string n) : name_(std::move(n)) {}
 
@@ -64,20 +65,65 @@ QueryResult InsertCommand::execute(DatabaseManager& mgr, Session& session) {
     return {false, false, {}, {}, {}, insertedCount, "", false};
 }
 
-SelectCommand::SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c)
-    : table_(std::move(t)), projection_(std::move(p)), condition_(std::move(c)) {}
+SelectCommand::SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c,
+                             std::optional<OrderBy> orderBy, std::optional<size_t> limit, std::optional<size_t> offset)
+    : table_(std::move(t)), projection_(std::move(p)), condition_(std::move(c))
+    , orderBy_(std::move(orderBy)), limit_(limit), offset_(offset) {}
+
+static int valueCompare(const Value& a, const Value& b) {
+    return std::visit([](auto&& lhs, auto&& rhs) -> int {
+        using L = std::decay_t<decltype(lhs)>;
+        using R = std::decay_t<decltype(rhs)>;
+        if constexpr (std::is_same_v<L, R> && !std::is_same_v<L, std::nullptr_t>) {
+            if (lhs < rhs) return -1;
+            if (lhs > rhs) return  1;
+            return 0;
+        }
+        return 0;
+    }, a, b);
+}
 
 QueryResult SelectCommand::execute(DatabaseManager& mgr, Session& session) {
-    const auto& t = mgr.getCurrentDatabase(session).getTable(table_);
+    auto& t = mgr.getCurrentDatabase(session).getTable(table_);
+
+    auto rows = t.selectFiltered(condition_.get());
+
+    if (orderBy_) {
+        size_t colIdx = t.schema.getColumnIndex(orderBy_->column);
+        bool asc = orderBy_->ascending;
+        std::stable_sort(rows.begin(), rows.end(), [colIdx, asc](const Row& a, const Row& b) {
+            int cmp = valueCompare(a[colIdx], b[colIdx]);
+            return asc ? cmp < 0 : cmp > 0;
+        });
+    }
+
+    size_t start = offset_.value_or(0);
+    if (start >= rows.size()) rows.clear();
+    else rows.erase(rows.begin(), rows.begin() + static_cast<std::ptrdiff_t>(start));
+
+    if (limit_ && rows.size() > *limit_)
+        rows.resize(*limit_);
+
     QueryResult res;
     res.isSelect = true;
-    res.rows = t.select(projection_, condition_.get());
 
+    std::vector<size_t> indices;
     if (projection_.size() == 1 && projection_[0] == "*") {
+        for (size_t i = 0; i < t.schema.columns.size(); ++i) indices.push_back(i);
         for (const auto& col : t.schema.columns) res.columns.push_back(col.name);
     } else {
-        res.columns = projection_;
+        for (const auto& col : projection_) {
+            indices.push_back(t.schema.getColumnIndex(col));
+            res.columns.push_back(col);
+        }
     }
+
+    for (const auto& row : rows) {
+        Row projected;
+        for (size_t idx : indices) projected.push_back(row[idx]);
+        res.rows.push_back(projected);
+    }
+
     res.affectedRows = res.rows.size();
     return res;
 }

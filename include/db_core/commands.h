@@ -4,9 +4,15 @@
 #include "session.h"
 #include "types.h"
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <utility>
+
+struct OrderBy {
+    std::string column;
+    bool ascending = true;
+};
 
 class Command {
 public:
@@ -63,8 +69,14 @@ class SelectCommand : public Command {
     std::string table_;
     std::vector<std::string> projection_;
     std::shared_ptr<ConditionNode> condition_;
+    std::optional<OrderBy> orderBy_;
+    std::optional<size_t> limit_;
+    std::optional<size_t> offset_;
 public:
-    SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c);
+    SelectCommand(std::string t, std::vector<std::string> p, std::shared_ptr<ConditionNode> c,
+                  std::optional<OrderBy> orderBy = std::nullopt,
+                  std::optional<size_t> limit = std::nullopt,
+                  std::optional<size_t> offset = std::nullopt);
     QueryResult execute(DatabaseManager& mgr, Session& session) override;
 };
 

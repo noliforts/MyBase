@@ -8,6 +8,14 @@ void Table::insert(const Row& values) {
     rows.push_back(values);
 }
 
+std::vector<Row> Table::selectFiltered(const ConditionNode* cond) const {
+    std::vector<Row> result;
+    for (const auto& row : rows)
+        if (!cond || cond->evaluate(row, schema))
+            result.push_back(row);
+    return result;
+}
+
 std::vector<Row> Table::select(const std::vector<std::string>& projection, const ConditionNode* cond) const {
     std::vector<Row> result;
     std::vector<size_t> indices;

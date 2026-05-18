@@ -188,8 +188,27 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
         expect(TokenType::FROM);
         std::string table = lexer_.nextToken().lexeme;
         auto cond = parseOptionalWhere();
+
+        std::optional<OrderBy> orderBy;
+        if (match(TokenType::ORDER)) {
+            expect(TokenType::BY);
+            std::string col = lexer_.nextToken().lexeme;
+            bool asc = true;
+            if (match(TokenType::DESC)) asc = false;
+            else match(TokenType::ASC);
+            orderBy = OrderBy{col, asc};
+        }
+
+        std::optional<size_t> limit;
+        if (match(TokenType::LIMIT))
+            limit = static_cast<size_t>(std::stoul(lexer_.nextToken().lexeme));
+
+        std::optional<size_t> offset;
+        if (match(TokenType::OFFSET))
+            offset = static_cast<size_t>(std::stoul(lexer_.nextToken().lexeme));
+
         expect(TokenType::SEMICOLON);
-        return std::make_unique<SelectCommand>(table, proj, cond);
+        return std::make_unique<SelectCommand>(table, proj, cond, orderBy, limit, offset);
     }
     else if (match(TokenType::UPDATE)) {
         std::string table = lexer_.nextToken().lexeme;
