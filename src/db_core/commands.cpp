@@ -255,15 +255,10 @@ ExportCommand::ExportCommand(std::string tableName, std::string filePath)
     : tableName_(std::move(tableName)), filePath_(std::move(filePath)) {}
 
 QueryResult ExportCommand::execute(DatabaseManager& mgr, Session& session) {
-    // 1. Получаем текущую БД
     auto& db = mgr.getCurrentDatabase(session);
 
-    // 2. Вызываем логику экспорта.
-    // Пример, если метод реализован в Database и принимает имя таблицы и путь:
     db.exportTableToCsv(tableName_, filePath_);
 
-    // Либо, если это делается напрямую через движок:
-    // CsvStorageEngine::exportTable(db.getTable(tableName_), filePath_);
 
     return {false, true, {}, {}, {}, 0, "Table '" + tableName_ + "' successfully exported to " + filePath_, false};
 }
@@ -274,7 +269,6 @@ ImportCommand::ImportCommand(std::string tableName, std::string filePath)
 QueryResult ImportCommand::execute(DatabaseManager& mgr, Session& session) {
     auto& db = mgr.getCurrentDatabase(session);
 
-    // Вызываем логику импорта
     db.importTableFromCsv(tableName_, filePath_);
 
     return {false, true, {}, {}, {}, 0, "Table '" + tableName_ + "' successfully imported from " + filePath_, false};

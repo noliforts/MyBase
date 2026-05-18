@@ -28,7 +28,10 @@
 - **LIMIT / OFFSET** — пагинация
 - **Многострочный INSERT** — `INSERT INTO t VALUES (…), (…), (…)`
 - **Именованные колонки в INSERT** — `INSERT INTO t (a, b) VALUES (…)`
+<<<<<<< HEAD
 - **Импорт и экспорт (CSV)** — `EXPORT TABLE <t> TO '<p>'` и `IMPORT TABLE <t> FROM '<p>'` для миграции и бэкапов
+=======
+>>>>>>> main
 - **Многопоточность** — каждое TCP-соединение обслуживается в отдельном потоке
 
 ### CLI-интерфейс
@@ -109,6 +112,7 @@ SELECT * FROM products ORDER BY price DESC;
   3 rows in set (0.42 ms)
 ```
 
+<<<<<<< HEAD
 ### Импорт и экспорт (CSV)
 
 Выгрузка данных из СУБД во внешний файл и их последующее восстановление:
@@ -128,22 +132,37 @@ IMPORT TABLE products FROM './products_backup.csv';
 
 ```
 
+=======
+>>>>>>> main
 ### Агрегации
 
 ```sql
 SELECT COUNT(id), AVG(price), MAX(price) FROM products WHERE active = true;
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
 ```
 
 ### Транзакции
 
+<<<<<<< HEAD
+=======
+![transactions](gifs/transactions.gif)
+
+>>>>>>> main
 ```sql
 BEGIN;
 UPDATE products SET price = 0.01 WHERE id = 2;
 ROLLBACK;
 -- цена Gadget не изменилась
+<<<<<<< HEAD
 
 ```
+=======
+```
+
+>>>>>>> main
 ---
 
 ## Архитектура
