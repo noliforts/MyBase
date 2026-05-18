@@ -20,3 +20,16 @@ public:
     void saveAll(const DatabaseManager& mgr) override;
     void loadAll(DatabaseManager& mgr) override;
 };
+
+
+class CsvStorageEngine {
+public:
+    static void exportDatabase(const Database& db, const std::string& basePath);
+
+    static void exportAll(const DatabaseManager& mgr, const std::string& basePath = "./data_csv");
+
+    static void importDatabase(Database& db, const std::string& basePath);
+
+
+    static void importAll(DatabaseManager& mgr, const std::string& basePath = "./data_csv");
+};

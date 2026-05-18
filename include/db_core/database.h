@@ -14,4 +14,7 @@ public:
     void dropTable(const std::string& t_name);
     Table& getTable(const std::string& t_name);
     const Table& getTable(const std::string& t_name) const;
+
+    void exportTableToCsv(const std::string& t_name, const std::string& filePath) const;
+    void importTableFromCsv(const std::string& t_name, const std::string& filePath);
 };

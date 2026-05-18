@@ -122,3 +122,19 @@ class RollbackCommand : public Command {
 public:
     QueryResult execute(DatabaseManager& mgr, Session& session) override;
 };
+class ExportCommand : public Command {
+public:
+    ExportCommand(std::string tableName, std::string filePath);
+    QueryResult execute(DatabaseManager& mgr, Session& session) override;
+private:
+    std::string tableName_;
+    std::string filePath_;
+};
+class ImportCommand : public Command {
+public:
+    ImportCommand(std::string tableName, std::string filePath);
+    QueryResult execute(DatabaseManager& mgr, Session& session) override;
+private:
+    std::string tableName_;
+    std::string filePath_;
+};

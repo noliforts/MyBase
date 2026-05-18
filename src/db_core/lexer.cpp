@@ -39,7 +39,7 @@ Token Lexer::nextToken() {
             {"LIMIT", TokenType::LIMIT}, {"OFFSET", TokenType::OFFSET},
             {"GROUP", TokenType::GROUP},
             {"COUNT", TokenType::COUNT}, {"SUM", TokenType::SUM},
-            {"MIN", TokenType::MIN}, {"MAX", TokenType::MAX}, {"AVG", TokenType::AVG}
+            {"MIN", TokenType::MIN}, {"MAX", TokenType::MAX}, {"AVG", TokenType::AVG}, {"IMPORT", TokenType::IMPORT},{"EXPORT", TokenType::EXPORT}, {"TO", TokenType::TO}
         };
 
         if (keywords.count(upper)) return {keywords.at(upper), ident, line_, startCol};
