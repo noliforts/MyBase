@@ -32,7 +32,7 @@ QueryResult CreateTableCommand::execute(DatabaseManager& mgr) {
 DropTableCommand::DropTableCommand(std::string n) : name_(std::move(n)) {}
 
 QueryResult DropTableCommand::execute(DatabaseManager& mgr) {
-    mgr.getCurrentDatabase().tables.erase(name_);
+    mgr.getCurrentDatabase().dropTable(name_);
     return {false, true, {}, {}, {}, 0, "Table '" + name_ + "' dropped.", false};
 }
 
