@@ -97,3 +97,18 @@ QueryResult DeleteCommand::execute(DatabaseManager& mgr) {
     size_t count = mgr.getCurrentDatabase().getTable(table_).remove(condition_.get());
     return {false, false, {}, {}, {}, count, "", false};
 }
+
+QueryResult BeginCommand::execute(DatabaseManager& mgr) {
+    mgr.beginTransaction();
+    return {false, true, {}, {}, {}, 0, "Transaction started.", false};
+}
+
+QueryResult CommitCommand::execute(DatabaseManager& mgr) {
+    mgr.commitTransaction();
+    return {false, true, {}, {}, {}, 0, "Transaction committed.", false};
+}
+
+QueryResult RollbackCommand::execute(DatabaseManager& mgr) {
+    mgr.rollbackTransaction();
+    return {false, true, {}, {}, {}, 0, "Transaction rolled back.", false};
+}

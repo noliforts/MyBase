@@ -73,6 +73,39 @@ TEST(LexerTest, LineAndColumnTracking) {
     EXPECT_EQ(t3.column, 1);
 }
 
+TEST(LexerTest, TransactionKeywords) {
+    std::string src = "BEGIN; COMMIT; ROLLBACK;";
+    Lexer lexer(src);
+
+    Token t1 = lexer.nextToken();
+    EXPECT_EQ(t1.type, TokenType::BEGIN);
+    EXPECT_EQ(t1.lexeme, "BEGIN");
+    EXPECT_EQ(lexer.nextToken().type, TokenType::SEMICOLON);
+
+    Token t2 = lexer.nextToken();
+    EXPECT_EQ(t2.type, TokenType::COMMIT);
+    EXPECT_EQ(t2.lexeme, "COMMIT");
+    EXPECT_EQ(lexer.nextToken().type, TokenType::SEMICOLON);
+
+    Token t3 = lexer.nextToken();
+    EXPECT_EQ(t3.type, TokenType::ROLLBACK);
+    EXPECT_EQ(t3.lexeme, "ROLLBACK");
+    EXPECT_EQ(lexer.nextToken().type, TokenType::SEMICOLON);
+
+    EXPECT_EQ(lexer.nextToken().type, TokenType::END_OF_FILE);
+}
+
+TEST(LexerTest, TransactionKeywordsCaseInsensitive) {
+    std::string src = "begin; commit; rollback;";
+    Lexer lexer(src);
+
+    EXPECT_EQ(lexer.nextToken().type, TokenType::BEGIN);
+    lexer.nextToken();
+    EXPECT_EQ(lexer.nextToken().type, TokenType::COMMIT);
+    lexer.nextToken();
+    EXPECT_EQ(lexer.nextToken().type, TokenType::ROLLBACK);
+}
+
 TEST(LexerTest, ExceptionsThrowing) {
     std::string unclosed = "SELECT * FROM t WHERE name = 'Alex";
     Lexer lex1(unclosed);

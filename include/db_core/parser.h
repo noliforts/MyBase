@@ -214,5 +214,17 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
         expect(TokenType::SEMICOLON);
         return std::make_unique<DeleteCommand>(table, cond);
     }
+    else if (match(TokenType::BEGIN)) {
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<BeginCommand>();
+    }
+    else if (match(TokenType::COMMIT)) {
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<CommitCommand>();
+    }
+    else if (match(TokenType::ROLLBACK)) {
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<RollbackCommand>();
+    }
     throw std::runtime_error("Unsupported SQL statement");
 }

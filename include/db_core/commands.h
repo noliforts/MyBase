@@ -83,3 +83,18 @@ public:
     DeleteCommand(std::string t, std::shared_ptr<ConditionNode> cond);
     QueryResult execute(DatabaseManager& mgr) override;
 };
+
+class BeginCommand : public Command {
+public:
+    QueryResult execute(DatabaseManager& mgr) override;
+};
+
+class CommitCommand : public Command {
+public:
+    QueryResult execute(DatabaseManager& mgr) override;
+};
+
+class RollbackCommand : public Command {
+public:
+    QueryResult execute(DatabaseManager& mgr) override;
+};

@@ -32,7 +32,8 @@ Token Lexer::nextToken() {
             {"WHERE", TokenType::WHERE}, {"AND", TokenType::AND}, {"OR", TokenType::OR},
             {"NOT", TokenType::NOT}, {"INT", TokenType::INT_TYPE}, {"FLOAT", TokenType::FLOAT_TYPE},
             {"BOOL", TokenType::BOOL_TYPE}, {"TEXT", TokenType::TEXT_TYPE}, {"VARCHAR", TokenType::VARCHAR_TYPE},
-            {"TRUE", TokenType::BOOL_LIT}, {"FALSE", TokenType::BOOL_LIT}, {"NULL", TokenType::NULL_LIT}
+            {"TRUE", TokenType::BOOL_LIT}, {"FALSE", TokenType::BOOL_LIT}, {"NULL", TokenType::NULL_LIT},
+            {"BEGIN", TokenType::BEGIN}, {"COMMIT", TokenType::COMMIT}, {"ROLLBACK", TokenType::ROLLBACK}
         };
 
         if (keywords.count(upper)) return {keywords.at(upper), ident, line_, startCol};
