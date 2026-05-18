@@ -46,27 +46,21 @@ void TcpServer::start() {
         int client_socket = accept(server_fd_, nullptr, nullptr);
         if (client_socket < 0) continue;
 
-        char buffer[1024] = {0};
-        ssize_t bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
+        std::string received;
+        char buf[4096];
+        ssize_t n;
+        while ((n = read(client_socket, buf, sizeof(buf))) > 0)
+            received.append(buf, n);
 
-        if (bytes_read > 0) {
-            // 1. Сетевой буфер -> Слой Протокола (Парсинг)
-            std::vector<uint8_t> raw_data(buffer, buffer + bytes_read);
+        if (!received.empty()) {
+            std::vector<uint8_t> raw_data(received.begin(), received.end());
             Request req = protocol_->parseRequest(raw_data);
-
-            // 2. Слой Протокола -> Слой Бизнес-логики (Выполнение SQL)
             Response res = handler_.handle(req);
-
-            // 3. Слой Бизнес-логики -> Слой Протокола (Сериализация)
             std::vector<uint8_t> out = protocol_->serializeResponse(res);
-
-            // 4. Отправка клиенту
             send(client_socket, out.data(), out.size(), 0);
         }
 
         close(client_socket);
-
-        // Скидываем состояние на диск после выполнения команды
         DatabaseManager::instance().saveAll();
     }
 }

@@ -16,10 +16,14 @@ DbResult TcpDbConnection::execute(const std::string& query) {
     }
 
     send(sock, query.c_str(), query.length(), 0);
+    shutdown(sock, SHUT_WR);
 
-    char buffer[4096] = {0};
-    read(sock, buffer, 4096);
+    std::string result;
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(sock, buf, sizeof(buf))) > 0)
+        result.append(buf, n);
+
     ::close(sock);
-
-    return {true, std::string(buffer)};
+    return {true, result};
 }

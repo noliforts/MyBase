@@ -3,6 +3,8 @@
 #include "json.hpp"
 #include <fstream>
 #include <stdexcept>
+#include <filesystem>
+#include <set>
 
 using json = nlohmann::json;
 
@@ -49,24 +51,34 @@ static Value jsonToValue(const json& j, DataType type) {
     return nullptr;
 }
 
-void JsonFileStorageEngine::saveDatabase(const Database& db, const std::string& path) {
+void JsonFileStorageEngine::saveDatabase(const Database& db, const std::string& basePath) {
+    std::string dbPath = basePath + "/" + db.name;
+    std::filesystem::create_directories(dbPath);
+
+    std::set<std::string> validFiles;
+    for (const auto& [tableName, _] : db.tables)
+        validFiles.insert(tableName + ".jsonl");
+
+    for (const auto& entry : std::filesystem::directory_iterator(dbPath)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".jsonl")
+            if (!validFiles.count(entry.path().filename().string()))
+                std::filesystem::remove(entry.path());
+    }
+
     for (const auto& [tableName, table] : db.tables) {
-        std::string filePath = path + "/" + db.name + "_" + tableName + ".jsonl";
+        std::string filePath = dbPath + "/" + tableName + ".jsonl";
         std::ofstream file(filePath);
         if (!file.is_open()) throw std::runtime_error("Failed to open file: " + filePath);
 
         json schemaJson = json::array();
-        for (const auto& col : table.schema.columns) {
+        for (const auto& col : table.schema.columns)
             schemaJson.push_back({ {"name", col.name}, {"type", dataTypeToString(col.type)} });
-        }
         file << schemaJson.dump() << "\n";
 
-        // Обращаемся напрямую к вектору строк таблицы
         for (const auto& row : table.rows) {
             json rowJson = json::array();
-            for (const auto& cell : row) {
+            for (const auto& cell : row)
                 rowJson.push_back(valueToJson(cell));
-            }
             file << rowJson.dump() << "\n";
         }
     }
@@ -78,13 +90,20 @@ Database JsonFileStorageEngine::loadDatabase(const std::string& path) {
 
 void JsonFileStorageEngine::saveAll(const DatabaseManager& mgr) {
     std::string basePath = "./data";
-    for (const auto& [dbName, db] : mgr.getDatabases()){
-        saveDatabase(db, basePath);
-    }
-}
+    std::filesystem::create_directories(basePath);
 
-#include <filesystem>
-#include <regex>
+    std::set<std::string> validDbs;
+    for (const auto& [dbName, _] : mgr.getDatabases())
+        validDbs.insert(dbName);
+
+    for (const auto& entry : std::filesystem::directory_iterator(basePath)) {
+        if (entry.is_directory() && !validDbs.count(entry.path().filename().string()))
+            std::filesystem::remove_all(entry.path());
+    }
+
+    for (const auto& [dbName, db] : mgr.getDatabases())
+        saveDatabase(db, basePath);
+}
 
 void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
     std::string basePath = "./data";
@@ -94,20 +113,20 @@ void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
         return;
     }
 
-    std::regex fileRegex("([a-zA-Z0-9_]+)_([a-zA-Z0-9_]+)\\.jsonl");
+    for (const auto& dbEntry : std::filesystem::directory_iterator(basePath)) {
+        if (!dbEntry.is_directory()) continue;
 
-    for (const auto& entry : std::filesystem::directory_iterator(basePath)) {
-        if (!entry.is_regular_file()) continue;
+        std::string dbName = dbEntry.path().filename().string();
+        auto& db = mgr.getDatabases()[dbName];
+        if (db.name.empty()) db.name = dbName;
 
-        std::string fileName = entry.path().filename().string();
-        std::smatch matches;
+        for (const auto& tableEntry : std::filesystem::directory_iterator(dbEntry.path())) {
+            if (!tableEntry.is_regular_file()) continue;
+            if (tableEntry.path().extension() != ".jsonl") continue;
 
-        if (std::regex_match(fileName, matches, fileRegex)) {
-            std::string dbName = matches[1].str();
-            std::string tableName = matches[2].str();
-
+            std::string tableName = tableEntry.path().stem().string();
             try {
-                std::ifstream file(entry.path());
+                std::ifstream file(tableEntry.path());
                 if (!file.is_open()) continue;
 
                 std::string line;
@@ -116,34 +135,30 @@ void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
 
                 if (std::getline(file, line) && !line.empty()) {
                     json schemaJson = json::parse(line);
-                    for (const auto& colJ : schemaJson) {
+                    for (const auto& colJ : schemaJson)
                         schema.columns.push_back({
                             colJ["name"].get<std::string>(),
                             stringToDataType(colJ["type"].get<std::string>())
                         });
-                    }
                 }
 
                 while (std::getline(file, line)) {
                     if (line.empty()) continue;
                     json rowJson = json::parse(line);
                     Row row;
-                    for (size_t i = 0; i < rowJson.size(); ++i) {
+                    for (size_t i = 0; i < rowJson.size(); ++i)
                         row.push_back(jsonToValue(rowJson[i], schema.columns[i].type));
-                    }
                     rows.push_back(row);
                 }
-
-                auto& db = mgr.getDatabases()[dbName];
-                if (db.name.empty()) db.name = dbName;
 
                 Table restoredTable;
                 restoredTable.schema = schema;
                 restoredTable.rows = rows;
-
                 db.tables[tableName] = restoredTable;
+
             } catch (const std::exception& e) {
-                std::cerr << "[WARN] Skipping corrupt file " << fileName << ": " << e.what() << "\n";
+                std::cerr << "[WARN] Skipping corrupt file " << tableEntry.path().filename()
+                          << ": " << e.what() << "\n";
             }
         }
     }
