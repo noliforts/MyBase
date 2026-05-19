@@ -270,9 +270,8 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
         std::string tableName = lexer_.nextToken().lexeme;
         expect(TokenType::TO);
 
-        // Извлекаем путь к файлу (строковый литерал)
         std::string filePath = lexer_.nextToken().lexeme;
-        // Если лексер сохраняет кавычки, можно их очистить:
+        // лексер хранит кавычки в lexeme ('path' -> "'path'"), снимаем их
         if (!filePath.empty() && (filePath.front() == '\'' || filePath.front() == '"')) {
             filePath = filePath.substr(1, filePath.size() - 2);
         }
@@ -286,6 +285,7 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
         expect(TokenType::FROM);
 
         std::string filePath = lexer_.nextToken().lexeme;
+        // лексер хранит кавычки в lexeme ('path' → "'path'"), снимаем их
         if (!filePath.empty() && (filePath.front() == '\'' || filePath.front() == '"')) {
             filePath = filePath.substr(1, filePath.size() - 2);
         }

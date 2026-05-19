@@ -259,7 +259,6 @@ QueryResult ExportCommand::execute(DatabaseManager& mgr, Session& session) {
 
     db.exportTableToCsv(tableName_, filePath_);
 
-
     return {false, true, {}, {}, {}, 0, "Table '" + tableName_ + "' successfully exported to " + filePath_, false};
 }
 
