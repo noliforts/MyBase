@@ -147,6 +147,8 @@ void JsonFileStorageEngine::loadAll(DatabaseManager& mgr) {
                 while (std::getline(file, line)) {
                     if (line.empty()) continue;
                     json rowJson = json::parse(line);
+                    if (rowJson.size() != schema.columns.size())
+                        throw std::runtime_error("row field count does not match schema");
                     Row row;
                     for (size_t i = 0; i < rowJson.size(); ++i)
                         row.push_back(jsonToValue(rowJson[i], schema.columns[i].type));

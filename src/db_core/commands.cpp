@@ -46,14 +46,21 @@ QueryResult InsertCommand::execute(DatabaseManager& mgr, Session& session) {
 
     for (const auto& rowVals : allRowsValues_) {
         if (!targetColumns_.empty()) {
+            if (rowVals.size() != targetColumns_.size())
+                throw std::runtime_error("Insert error: value count does not match column count.");
+
             Row alignedRow(table.schema.columns.size(), nullptr);
             for (size_t i = 0; i < targetColumns_.size(); ++i) {
+                bool matched = false;
                 for (size_t j = 0; j < table.schema.columns.size(); ++j) {
                     if (table.schema.columns[j].name == targetColumns_[i]) {
                         alignedRow[j] = rowVals[i];
+                        matched = true;
                         break;
                     }
                 }
+                if (!matched)
+                    throw std::runtime_error("Insert error: unknown column '" + targetColumns_[i] + "'.");
             }
             table.insert(alignedRow);
         } else {
