@@ -78,7 +78,13 @@ void CsvStorageEngine::importTable(Table& table, const std::string& filePath) {
 
     const auto& columns = table.schema.columns;
 
+    if (!table.rows.empty()) {
+        throw std::runtime_error("Table is not empty. DROP and recreate it before importing.");
+    }
+
     while (std::getline(file, line)) {
+        // совместимость с Windows CSV (\r\n)
+        if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty()) continue;
 
         std::vector<std::string> tokens = parseCsvLine(line);
@@ -89,7 +95,6 @@ void CsvStorageEngine::importTable(Table& table, const std::string& filePath) {
 
         Row newRow;
         newRow.reserve(columns.size());
-
         for (size_t i = 0; i < tokens.size(); ++i) {
             newRow.push_back(stringToValue(tokens[i], columns[i].type));
         }

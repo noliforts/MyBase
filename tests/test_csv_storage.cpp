@@ -104,3 +104,28 @@ TEST_F(CsvStorageTest, ImportNonExistentFileThrows) {
 
     EXPECT_THROW(CsvStorageEngine::importTable(table, fake_path), std::runtime_error);
 }
+
+TEST_F(CsvStorageTest, ImportThrowsIfTableNotEmpty) {
+    Table table = createMockTable();
+    table.insert({1, std::string("Widget"), 9.99f, true});
+
+    std::ofstream file(test_file_path);
+    file << "id,name,price,active\n";
+    file << "2,\"Gadget\",49.50,false\n";
+    file.close();
+
+    EXPECT_THROW(CsvStorageEngine::importTable(table, test_file_path), std::runtime_error);
+}
+
+TEST_F(CsvStorageTest, ImportHandlesCRLF) {
+    std::ofstream file(test_file_path, std::ios::binary);
+    file << "id,name,price,active\r\n";
+    file << "5,\"Item\",1.00,true\r\n";
+    file.close();
+
+    Table table = createMockTable();
+    ASSERT_NO_THROW(CsvStorageEngine::importTable(table, test_file_path));
+
+    ASSERT_EQ(table.rows.size(), 1);
+    EXPECT_EQ(std::get<bool>(table.rows[0][3]), true);
+}
