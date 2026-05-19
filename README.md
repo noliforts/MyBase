@@ -1,4 +1,4 @@
-G# MyBase ![CI](https://github.com/noliforts/MyBase/actions/workflows/ci.yml/badge.svg)
+# MyBase ![CI](https://github.com/noliforts/MyBase/actions/workflows/ci.yml/badge.svg)
 
 Реляционная СУБД с SQL-подобным языком запросов, написанная на C++17 с нуля.
 Клиент-серверная архитектура по TCP, персистентное хранилище в формате JSONL,
