@@ -50,11 +50,28 @@ void TcpServer::start() {
         // detach вместо join: серверный цикл никогда не завершается, поэтому
         // накапливать joinable-потоки некуда. Поток сам уничтожает себя при закрытии сокета.
         std::thread([this, client_socket]() {
+            // Ограничение размера запроса: без него клиент может бесконечно
+            // слать данные и исчерпать память сервера (DoS).
+            constexpr size_t kMaxRequestSize = 16 * 1024 * 1024;
             std::string received;
             char buf[4096];
             ssize_t n;
-            while ((n = read(client_socket, buf, sizeof(buf))) > 0)
+            bool tooLarge = false;
+            while ((n = read(client_socket, buf, sizeof(buf))) > 0) {
+                if (received.size() + static_cast<size_t>(n) > kMaxRequestSize) {
+                    tooLarge = true;
+                    break;
+                }
                 received.append(buf, n);
+            }
+
+            if (tooLarge) {
+                Response res{false, false, {}, {}, {}, 0, "Request too large", true};
+                std::vector<uint8_t> out = protocol_->serializeResponse(res);
+                send(client_socket, out.data(), out.size(), 0);
+                close(client_socket);
+                return;
+            }
 
             if (!received.empty()) {
                 SqlRequestHandler handler;
