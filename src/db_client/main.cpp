@@ -45,13 +45,15 @@ static const std::vector<std::string> KW_TXN     = {"BEGIN","COMMIT","ROLLBACK"}
 static const std::vector<std::string> KW_TYPES   = {"INT","FLOAT","BOOL","TEXT","VARCHAR"};
 static const std::vector<std::string> KW_AGG     = {"COUNT","SUM","MIN","MAX","AVG"};
 static const std::vector<std::string> KW_LIT     = {"TRUE","FALSE","NULL"};
+static const std::vector<std::string> KW_IO      = {"IMPORT", "EXPORT", "TO", "FROM"};
 
 static std::vector<std::string> allKeywords() {
     std::vector<std::string> all;
-    for (auto& v : {KW_DML, KW_DDL, KW_CLAUSE, KW_LOGIC, KW_TXN, KW_TYPES, KW_AGG, KW_LIT})
+    for (auto& v : {KW_DML, KW_DDL, KW_CLAUSE, KW_LOGIC, KW_TXN, KW_TYPES, KW_AGG, KW_LIT, KW_IO})
         all.insert(all.end(), v.begin(), v.end());
     return all;
 }
+
 
 static std::string toUpper(const std::string& s) {
     std::string r = s;
@@ -110,6 +112,7 @@ static void onHighlight(const std::string& in, Replxx::colors_t& colors) {
             else if (inVec(KW_TYPES,  up)) col = RxColor::GREEN;
             else if (inVec(KW_AGG,    up)) col = RxColor::BRIGHTGREEN;
             else if (inVec(KW_LIT,    up)) col = RxColor::CYAN;
+            else if (inVec(KW_IO,     up)) col = RxColor::BRIGHTMAGENTA;
 
             for (size_t j = s; j < i && j < colors.size(); ++j)
                 colors[j] = col;
@@ -331,6 +334,8 @@ static void printHelp() {
             {"INSERT INTO … VALUES (…)",     "Insert one or more rows"},
             {"UPDATE … SET … WHERE …",       "Update matching rows"},
             {"DELETE FROM … WHERE …",        "Delete matching rows"},
+            {"EXPORT TABLE <t> TO '<p>'",    "Export table to CSV file on server"},
+            {"IMPORT TABLE <t> FROM '<p>'",  "Import table from CSV file on server"},
             {"BEGIN / COMMIT / ROLLBACK",    "Transaction control"},
             {"SELECT COUNT/SUM/AVG(…)",      "Aggregate functions with GROUP BY"},
         })

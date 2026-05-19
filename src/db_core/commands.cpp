@@ -250,3 +250,25 @@ QueryResult RollbackCommand::execute(DatabaseManager& mgr, Session& session) {
     mgr.rollbackTransaction(session);
     return {false, true, {}, {}, {}, 0, "Transaction rolled back.", false};
 }
+
+ExportCommand::ExportCommand(std::string tableName, std::string filePath)
+    : tableName_(std::move(tableName)), filePath_(std::move(filePath)) {}
+
+QueryResult ExportCommand::execute(DatabaseManager& mgr, Session& session) {
+    auto& db = mgr.getCurrentDatabase(session);
+
+    db.exportTableToCsv(tableName_, filePath_);
+
+    return {false, true, {}, {}, {}, 0, "Table '" + tableName_ + "' successfully exported to " + filePath_, false};
+}
+
+ImportCommand::ImportCommand(std::string tableName, std::string filePath)
+    : tableName_(std::move(tableName)), filePath_(std::move(filePath)) {}
+
+QueryResult ImportCommand::execute(DatabaseManager& mgr, Session& session) {
+    auto& db = mgr.getCurrentDatabase(session);
+
+    db.importTableFromCsv(tableName_, filePath_);
+
+    return {false, true, {}, {}, {}, 0, "Table '" + tableName_ + "' successfully imported from " + filePath_, false};
+}

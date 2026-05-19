@@ -265,6 +265,34 @@ std::unique_ptr<Command> Parser<LexerT>::parse() {
         expect(TokenType::SEMICOLON);
         return std::make_unique<DeleteCommand>(table, cond);
     }
+    else if (match(TokenType::EXPORT)) {
+        expect(TokenType::TABLE);
+        std::string tableName = lexer_.nextToken().lexeme;
+        expect(TokenType::TO);
+
+        std::string filePath = lexer_.nextToken().lexeme;
+        // лексер хранит кавычки в lexeme ('path' -> "'path'"), снимаем их
+        if (!filePath.empty() && (filePath.front() == '\'' || filePath.front() == '"')) {
+            filePath = filePath.substr(1, filePath.size() - 2);
+        }
+
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<ExportCommand>(std::move(tableName), std::move(filePath));
+    }
+    else if (match(TokenType::IMPORT)) {
+        expect(TokenType::TABLE);
+        std::string tableName = lexer_.nextToken().lexeme;
+        expect(TokenType::FROM);
+
+        std::string filePath = lexer_.nextToken().lexeme;
+        // лексер хранит кавычки в lexeme ('path' → "'path'"), снимаем их
+        if (!filePath.empty() && (filePath.front() == '\'' || filePath.front() == '"')) {
+            filePath = filePath.substr(1, filePath.size() - 2);
+        }
+
+        expect(TokenType::SEMICOLON);
+        return std::make_unique<ImportCommand>(std::move(tableName), std::move(filePath));
+    }
     else if (match(TokenType::BEGIN)) {
         expect(TokenType::SEMICOLON);
         return std::make_unique<BeginCommand>();
